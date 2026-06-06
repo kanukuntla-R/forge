@@ -37,6 +37,7 @@ forge/
 ├── go.mod
 ├── go.sum
 ├── Makefile                       # build, cross-compile, test targets
+├── embedded.go                    # package forge; //go:embed all:blueprints — see note below
 ├── cmd/
 │   └── forge/
 │       └── main.go                # entry: ~30 lines, calls into internal/cli
@@ -106,6 +107,8 @@ forge/
 ```
 
 **Why `internal/` instead of `pkg/`:** Go treats packages inside `internal/` as private — no other module can import them. This is deliberate. Forge isn't a library yet; its packages are implementation details. If we later want to publish a public library (say `forge-schema` for blueprint authors to validate their YAML), we'd add a `pkg/` directory.
+
+**Why there is an `embedded.go` at the project root:** Go's `//go:embed` directive requires paths relative to the source file and forbids `..`. `blueprints/` is kept at the project root because it is first-class content that blueprint authors read and edit — burying it inside `internal/blueprint/` would make it hard to find. Since `internal/blueprint/embedded.go` cannot embed `../../blueprints`, the embed directive lives in a thin root-level file (`embedded.go`, `package forge`) that holds only `//go:embed all:blueprints` and a `BlueprintsFS() embed.FS` accessor. `internal/blueprint` imports `github.com/kanukuntla-r/forge` to call `forge.BlueprintsFS()` and sub into it. The root package has no other contents — it is a packaging workaround, not a domain package. The `all:` prefix is required so that template files beginning with `.` (e.g., `.gitignore`, `.env.example`) are included in the binary; without it, Go silently skips them.
 
 **Key dependencies:**
 
