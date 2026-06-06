@@ -1,0 +1,11 @@
+# Compiled binary
+/forge
+
+# OS / editor noise
+.DS_Store
+*.swp
+*~
+
+# Future build output we might add
+/dist/
+/build/
