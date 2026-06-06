@@ -1,0 +1,84 @@
+# Identity
+name: hackathon-app
+display_name: "Hackathon Web App"
+description: "Next.js 14 + Tailwind + shadcn/ui starter with optional database, auth, and AI."
+version: "0.1.0"
+authors: ["kanukuntla-r"]
+
+kind: app
+
+stack:
+  language: typescript
+  runtime: node
+  framework: nextjs
+  tags: [web, nextjs, tailwind, hackathon]
+
+variables:
+  - name: description
+    prompt: "One-line description of the app"
+    type: string
+    default: "A hackathon app"
+
+  - name: with_database
+    prompt: "Include a database? (SQLite via libsql)"
+    type: bool
+    default: false
+
+  - name: with_auth
+    prompt: "Include authentication? (Clerk)"
+    type: bool
+    default: false
+
+  - name: with_ai
+    prompt: "Include AI integration? (OpenAI + Anthropic SDK)"
+    type: bool
+    default: true
+
+  - name: with_dark_mode
+    prompt: "Include dark mode toggle?"
+    type: bool
+    default: true
+
+  - name: package_manager
+    prompt: "Package manager"
+    type: choice
+    choices: [pnpm, npm, yarn, bun]
+    default: pnpm
+
+target:
+  default_path: "./{{ .Name }}"
+
+post_create:
+  - name: "Initialize git"
+    shell: "git init && git add -A && git commit -m 'Initial commit from forge'"
+    optional: true
+
+  - name: "Install dependencies"
+    shell: "{{ .PackageManager }} install"
+    optional: false
+
+extensions:
+  - name: api-route
+    description: "Add a new API route under app/api/"
+    template: extensions/api-route/template
+    args:
+      - name: route_name
+        prompt: "Route name (kebab-case)"
+        pattern: "^[a-z][a-z0-9-]*$"
+    graph_fragment: extensions/api-route/graph-fragment.yaml
+
+  - name: page
+    description: "Add a new page under app/"
+    template: extensions/page/template
+    args:
+      - name: slug
+        prompt: "Page slug (kebab-case)"
+        pattern: "^[a-z][a-z0-9-]*$"
+
+  - name: component
+    description: "Add a new React component under components/"
+    template: extensions/component/template
+    args:
+      - name: component_name
+        prompt: "Component name (PascalCase)"
+        pattern: "^[A-Z][A-Za-z0-9]*$"
