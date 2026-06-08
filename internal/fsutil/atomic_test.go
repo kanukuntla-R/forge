@@ -3,6 +3,7 @@ package fsutil_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kanukuntla-r/forge/internal/fsutil"
@@ -126,6 +127,62 @@ func TestPathAbsoluteRejected(t *testing.T) {
 
 	if err := stager.WriteFile("/etc/passwd", []byte("x"), 0644); err == nil {
 		t.Error("WriteFile(/etc/passwd): expected error for absolute path, got nil")
+	}
+}
+
+// TestStagingPathIsNextToTarget asserts that the staging directory lives inside
+// the target's parent, not in /tmp — the same-filesystem requirement for Rename.
+func TestStagingPathIsNextToTarget(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "my-app")
+	stager, err := fsutil.NewStager(target)
+	if err != nil {
+		t.Fatalf("NewStager() error: %v", err)
+	}
+	defer stager.Discard()
+
+	parent := filepath.Dir(target)
+	if !strings.HasPrefix(stager.StagingPath(), parent+string(filepath.Separator)) {
+		t.Errorf("staging path %q does not start with target parent %q", stager.StagingPath(), parent)
+	}
+}
+
+// TestNewStagerCreatesDeepParent verifies that NewStager succeeds even when
+// intermediate directories in the target path don't exist yet.
+func TestNewStagerCreatesDeepParent(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "deep", "path", "project")
+	stager, err := fsutil.NewStager(target)
+	if err != nil {
+		t.Fatalf("NewStager() with non-existent deep parent: %v", err)
+	}
+	defer stager.Discard()
+
+	parent := filepath.Dir(target)
+	if _, err := os.Stat(parent); err != nil {
+		t.Errorf("parent directory %q not created: %v", parent, err)
+	}
+}
+
+func TestCommitMovesDeepTarget(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "deep", "path", "project")
+	stager, err := fsutil.NewStager(target)
+	if err != nil {
+		t.Fatalf("NewStager() error: %v", err)
+	}
+	defer stager.Discard()
+
+	if err := stager.WriteFile("main.go", []byte("package main"), 0644); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
+	if err := stager.Commit(); err != nil {
+		t.Fatalf("Commit() error: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(target, "main.go"))
+	if err != nil {
+		t.Fatalf("reading committed file: %v", err)
+	}
+	if string(content) != "package main" {
+		t.Errorf("content = %q, want %q", content, "package main")
 	}
 }
 

@@ -149,12 +149,19 @@ func TestWriteBlueprintHackathonAppRealBlueprint(t *testing.T) {
 		t.Fatalf("Find() error: %v", err)
 	}
 
+	values, err := render.Resolve(bp.Manifest, nil, nil, false)
+	if err != nil {
+		t.Fatalf("Resolve() error: %v", err)
+	}
+	values["name"] = "test-project"
+	ctx := render.ToTemplateContext(values)
+
 	target := filepath.Join(t.TempDir(), "output")
-	files, err := render.WriteBlueprint(bp, map[string]any{}, target)
+	files, err := render.WriteBlueprint(bp, ctx, target)
 	if err != nil {
 		t.Fatalf("WriteBlueprint() error: %v", err)
 	}
-	if len(files) != 0 {
-		t.Errorf("expected empty file list for blueprint with no template/, got %v", files)
+	if len(files) == 0 {
+		t.Error("expected at least one file written for blueprint with template/")
 	}
 }

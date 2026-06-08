@@ -20,8 +20,8 @@ import (
 // operation. Callers must pass ctx with PascalCase keys — use
 // ToTemplateContext to convert a resolved variable map before calling.
 //
-// Returns the sorted list of relative paths written, or nil if the blueprint
-// has no template/ directory (not an error — some blueprints are manifest-only).
+// Returns the sorted list of relative paths written, or an empty list if the
+// blueprint's template/ directory exists but contains no files.
 func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath string) ([]string, error) {
 	const templateRoot = "template"
 

@@ -21,14 +21,20 @@ type Stager struct {
 	targetPath string
 }
 
-// NewStager creates a staging directory (forge- prefix in the OS temp dir)
-// for targetPath. targetPath is stored but not touched until Commit.
+// NewStager creates a staging directory next to targetPath (same filesystem)
+// so that Commit's os.Rename is always within one filesystem. Staging in
+// os.TempDir() (/tmp) would put it on a different filesystem (typically
+// tmpfs) and cause "invalid cross-device link" on Rename.
 func NewStager(targetPath string) (*Stager, error) {
 	abs, err := filepath.Abs(targetPath)
 	if err != nil {
 		return nil, fmt.Errorf("resolving target path: %w", err)
 	}
-	tmp, err := os.MkdirTemp("", "forge-")
+	parent := filepath.Dir(abs)
+	if err := os.MkdirAll(parent, 0755); err != nil {
+		return nil, fmt.Errorf("creating parent directory %q: %w", parent, err)
+	}
+	tmp, err := os.MkdirTemp(parent, ".forge-staging-")
 	if err != nil {
 		return nil, fmt.Errorf("creating staging directory: %w", err)
 	}
