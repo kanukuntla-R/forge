@@ -20,17 +20,17 @@ variables:
     default: "A hackathon app"
 
   - name: with_database
-    prompt: "Include a database? (SQLite via libsql)"
+    prompt: "Include a database? (Supabase Postgres)"
     type: bool
     default: false
 
   - name: with_auth
-    prompt: "Include authentication? (Clerk)"
+    prompt: "Include authentication? (Supabase Auth)"
     type: bool
     default: false
 
   - name: with_ai
-    prompt: "Include AI integration? (OpenAI + Anthropic SDK)"
+    prompt: "Include AI integration? (Anthropic)"
     type: bool
     default: false
 
