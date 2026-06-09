@@ -1,0 +1,21 @@
+{{- if .WithAi -}}
+import { NextResponse } from "next/server";
+import { tellJoke } from "@/lib/ai";
+
+export async function POST() {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { error: "ANTHROPIC_API_KEY is not set in .env.local" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const text = await tellJoke();
+    return NextResponse.json({ text });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+{{- end -}}

@@ -176,6 +176,33 @@ func checkMode(t *testing.T, path string, want os.FileMode) {
 	}
 }
 
+func TestWriteBlueprintSkipsEmptyRenderedTemplates(t *testing.T) {
+	bp := newSyntheticBlueprint(fstest.MapFS{
+		"template/always.md.tmpl": &fstest.MapFile{
+			Data: []byte("always included"),
+			Mode: 0644,
+		},
+		"template/conditional.md.tmpl": &fstest.MapFile{
+			Data: []byte("{{ if .Show }}visible{{ end }}"),
+			Mode: 0644,
+		},
+	})
+
+	target := filepath.Join(t.TempDir(), "output")
+	files, err := render.WriteBlueprint(bp, map[string]any{"Show": false}, target)
+	if err != nil {
+		t.Fatalf("WriteBlueprint() error: %v", err)
+	}
+
+	if want := []string{"always.md"}; !reflect.DeepEqual(files, want) {
+		t.Errorf("files = %v, want %v", files, want)
+	}
+
+	if _, err := os.Stat(filepath.Join(target, "conditional.md")); !os.IsNotExist(err) {
+		t.Error("conditional.md should not exist when template renders empty")
+	}
+}
+
 func TestWriteBlueprintHackathonAppRealBlueprint(t *testing.T) {
 	r, err := blueprint.NewRegistry()
 	if err != nil {

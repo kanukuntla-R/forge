@@ -32,12 +32,12 @@ variables:
   - name: with_ai
     prompt: "Include AI integration? (OpenAI + Anthropic SDK)"
     type: bool
-    default: true
+    default: false
 
   - name: with_dark_mode
     prompt: "Include dark mode toggle?"
     type: bool
-    default: true
+    default: false
 
   - name: package_manager
     prompt: "Package manager"

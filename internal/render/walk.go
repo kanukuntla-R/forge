@@ -51,7 +51,7 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 		rel := strings.TrimPrefix(srcPath, templateRoot+"/")
 
 		if d.IsDir() {
-			return stager.Mkdir(rel, 0o755)
+			return nil // WriteFile creates parent dirs on demand
 		}
 
 		content, err := fs.ReadFile(bp.FS, srcPath)
@@ -64,6 +64,9 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 			rendered, err := Render(rel, string(content), ctx)
 			if err != nil {
 				return fmt.Errorf("rendering %q: %w", srcPath, err)
+			}
+			if strings.TrimSpace(rendered) == "" {
+				return nil // empty render means this file is excluded by a conditional
 			}
 			content = []byte(rendered)
 			outPath = strings.TrimSuffix(rel, ".tmpl")

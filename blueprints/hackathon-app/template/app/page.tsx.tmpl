@@ -1,6 +1,37 @@
-export default function Home() {
-  return (
+{{ if .WithAi }}"use client";
+
+import { useState } from "react";
+
+{{ end -}}{{ if .WithDarkMode }}import { ThemeToggle } from "@/components/theme-toggle";
+
+{{ end -}}export default function Home() {
+{{ if .WithAi -}}
+  const [joke, setJoke] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchJoke = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/ai", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Request failed");
+      setJoke(data.text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+{{ end -}}  return (
     <main className="min-h-screen p-8">
+{{ if .WithDarkMode -}}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+{{ end -}}
       <div className="max-w-2xl mx-auto">
         <h1 className="text-4xl font-bold mb-4">{{ .Name }}</h1>
         <p className="text-muted-foreground mb-8">{{ .Description }}</p>
@@ -16,12 +47,30 @@ export default function Home() {
               <span className="text-green-500">✓</span>
               <span>shadcn/ui</span>
             </li>
-            {{/* AI status row inserted here next session */}}
-            {{/* Database status row inserted here next session */}}
-            {{/* Auth status row inserted here next session */}}
-            {{/* Dark mode toggle inserted here next session */}}
+            {{ if .WithAi }}<li>✓ Anthropic AI client at /api/ai</li>{{ else }}<li>- AI (disabled)</li>{{ end }}
+            {{/* Database status row */}}
+            {{/* Auth status row */}}
+            {{ if .WithDarkMode }}<li>✓ Dark mode toggle</li>{{ else }}<li>- Dark mode (disabled)</li>{{ end }}
           </ul>
         </section>
+{{ if .WithAi }}
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Try it out</h2>
+          <button
+            onClick={fetchJoke}
+            disabled={loading}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+          >
+            {loading ? "Loading..." : "Tell me a joke"}
+          </button>
+          {joke && (
+            <p className="mt-4 p-4 bg-muted rounded-md">{joke}</p>
+          )}
+          {error && (
+            <p className="mt-4 text-red-500">{error}</p>
+          )}
+        </section>
+{{ end -}}
       </div>
     </main>
   );
