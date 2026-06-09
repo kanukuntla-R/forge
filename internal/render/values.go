@@ -2,26 +2,36 @@ package render
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/huh"
+
 	"github.com/kanukuntla-r/forge/internal/manifest"
 )
+
+// FormOption configures the huh form before Resolve runs it.
+// This exists primarily to allow tests to inject scripted input via
+// WithInput/WithAccessible. Production callers should omit it and let
+// huh use the real terminal.
+type FormOption func(*huh.Form) *huh.Form
 
 // Resolve produces the final variable map for a blueprint scaffolding run.
 // Resolution order — last wins:
 //  1. Defaults from the manifest
 //  2. jsonVars (decoded from --json stdin)
 //  3. flagVars (parsed from --var KEY=VALUE flags)
-//  4. Interactive prompts — not yet implemented; see TODO below.
+//  4. Interactive prompts via charmbracelet/huh for any still-missing values.
 //
-// If interactive is true and a variable still has no value after steps 1–3,
-// Resolve returns an error until prompt support is wired in.
+// formOpts are applied to the huh form before it runs; production callers
+// omit them.
 func Resolve(
 	m *manifest.Manifest,
 	jsonVars map[string]any,
 	flagVars []string,
 	interactive bool,
+	formOpts ...FormOption,
 ) (map[string]any, error) {
 	byName := make(map[string]manifest.Variable, len(m.Variables))
 	for _, v := range m.Variables {
@@ -67,20 +77,121 @@ func Resolve(
 		result[v.Name] = coerced
 	}
 
-	// 5. Check for missing values.
+	// 5. Prompt for any variables still missing.
+	var missing []manifest.Variable
 	for _, v := range m.Variables {
-		if _, ok := result[v.Name]; ok {
-			continue
+		if _, ok := result[v.Name]; !ok {
+			missing = append(missing, v)
 		}
-		if interactive {
-			// TODO: collect missing variables and prompt via charmbracelet/huh.
-			// Until huh is wired in (next chunk), treat as an error.
-			return nil, fmt.Errorf("variable %q has no value and no default; interactive prompts not yet implemented", v.Name)
+	}
+	if len(missing) > 0 {
+		if !interactive {
+			return nil, fmt.Errorf("variable %q is required but was not provided (use --var %s=<value> or --json)",
+				missing[0].Name, missing[0].Name)
 		}
-		return nil, fmt.Errorf("variable %q is required but was not provided (use --var %s=<value> or --json)", v.Name, v.Name)
+		if err := promptMissing(missing, result, formOpts); err != nil {
+			return nil, err
+		}
 	}
 
 	return result, nil
+}
+
+// promptMissing builds a single huh form for all missing variables, runs it,
+// and stores the answers in result. All fields are grouped into one form so
+// the user sees the whole set of questions at once.
+func promptMissing(missing []manifest.Variable, result map[string]any, opts []FormOption) error {
+	type capture struct {
+		name    string
+		vtype   manifest.VarType
+		strVal  string
+		boolVal bool
+	}
+
+	caps := make([]capture, len(missing))
+	fields := make([]huh.Field, len(missing))
+
+	for i, v := range missing {
+		cap := &caps[i]
+		cap.name = v.Name
+		cap.vtype = v.Type
+
+		switch v.Type {
+		case manifest.VarTypeString, manifest.VarTypePath:
+			if def, ok := v.Default.(string); ok {
+				cap.strVal = def
+			}
+			f := huh.NewInput().Title(v.Prompt).Value(&cap.strVal)
+			if v.Pattern != "" {
+				re := regexp.MustCompile(v.Pattern)
+				f = f.Validate(func(s string) error {
+					if !re.MatchString(s) {
+						return fmt.Errorf("must match pattern %s", v.Pattern)
+					}
+					return nil
+				})
+			}
+			fields[i] = f
+
+		case manifest.VarTypeBool:
+			if def, ok := v.Default.(bool); ok {
+				cap.boolVal = def
+			}
+			fields[i] = huh.NewConfirm().Title(v.Prompt).Value(&cap.boolVal)
+
+		case manifest.VarTypeInt:
+			if def, ok := v.Default.(int); ok {
+				cap.strVal = strconv.Itoa(def)
+			}
+			// Capture min/max before the closure to avoid loop variable capture issues.
+			min, max := v.Min, v.Max
+			fields[i] = huh.NewInput().Title(v.Prompt).Value(&cap.strVal).
+				Validate(func(s string) error {
+					n, err := strconv.Atoi(s)
+					if err != nil {
+						return fmt.Errorf("expected integer, got %q", s)
+					}
+					if min != nil && n < *min {
+						return fmt.Errorf("must be at least %d", *min)
+					}
+					if max != nil && n > *max {
+						return fmt.Errorf("must be at most %d", *max)
+					}
+					return nil
+				})
+
+		case manifest.VarTypeChoice:
+			if def, ok := v.Default.(string); ok {
+				cap.strVal = def
+			}
+			options := make([]huh.Option[string], len(v.Choices))
+			for j, c := range v.Choices {
+				options[j] = huh.NewOption(c, c)
+			}
+			fields[i] = huh.NewSelect[string]().Title(v.Prompt).Options(options...).Value(&cap.strVal)
+		}
+	}
+
+	form := huh.NewForm(huh.NewGroup(fields...))
+	for _, opt := range opts {
+		form = opt(form)
+	}
+	if err := form.Run(); err != nil {
+		return fmt.Errorf("prompt: %w", err)
+	}
+
+	for _, cap := range caps {
+		switch cap.vtype {
+		case manifest.VarTypeString, manifest.VarTypePath, manifest.VarTypeChoice:
+			result[cap.name] = cap.strVal
+		case manifest.VarTypeBool:
+			result[cap.name] = cap.boolVal
+		case manifest.VarTypeInt:
+			n, _ := strconv.Atoi(cap.strVal) // already validated by huh
+			result[cap.name] = n
+		}
+	}
+	return nil
 }
 
 // ToTemplateContext returns a copy of values with keys converted from

@@ -1,8 +1,12 @@
 package render_test
 
 import (
+	"fmt"
+	"io"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/huh"
 
 	"github.com/kanukuntla-r/forge/internal/manifest"
 	"github.com/kanukuntla-r/forge/internal/render"
@@ -228,12 +232,31 @@ func TestResolveMissingRequiredNonInteractive(t *testing.T) {
 	}
 }
 
-func TestResolveMissingRequiredInteractive(t *testing.T) {
-	// interactive=true but prompts not yet implemented → error for now
-	m := makeManifest(requiredStringVar("description"))
-	_, err := render.Resolve(m, nil, nil, true)
-	if err == nil {
-		t.Fatal("expected error (interactive prompts not yet implemented), got nil")
+func TestResolveInteractivePromptsForMissing(t *testing.T) {
+	m := makeManifest(manifest.Variable{
+		Name:   "description",
+		Prompt: "One-line description",
+		Type:   manifest.VarTypeString,
+		// no default — required
+	})
+
+	r, w := io.Pipe()
+	go func() {
+		defer w.Close()
+		fmt.Fprintln(w, "my cool app")
+	}()
+	defer r.Close()
+
+	got, err := render.Resolve(m, nil, nil, true,
+		func(f *huh.Form) *huh.Form {
+			return f.WithInput(r).WithOutput(io.Discard).WithAccessible(true)
+		},
+	)
+	if err != nil {
+		t.Fatalf("Resolve() error: %v", err)
+	}
+	if got["description"] != "my cool app" {
+		t.Errorf("description = %v, want %q", got["description"], "my cool app")
 	}
 }
 
