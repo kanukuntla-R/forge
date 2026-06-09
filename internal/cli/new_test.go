@@ -47,8 +47,10 @@ func TestRunNewHackathonApp(t *testing.T) {
 }
 
 func TestRunNewInteractiveNamePrompt(t *testing.T) {
-	// All hackathon-app variables have defaults, so only the name prompt fires —
-	// no IO injection needed for render.Resolve.
+	// All blueprint variables are supplied via flags so they land in explicitlySet
+	// and render.Resolve skips the variable form entirely. Only the name prompt fires.
+	// This keeps the test focused: confirm the name prompt works and the scaffolded
+	// project uses the prompted name.
 	dir := t.TempDir()
 	orig, err := os.Getwd()
 	if err != nil {
@@ -66,8 +68,17 @@ func TestRunNewInteractiveNamePrompt(t *testing.T) {
 	}()
 	defer r.Close()
 
+	allVarFlags := []string{
+		"description=test app",
+		"with_database=false",
+		"with_auth=false",
+		"with_ai=false",
+		"with_dark_mode=false",
+		"package_manager=pnpm",
+	}
+
 	var buf bytes.Buffer
-	err = runNew(context.Background(), &buf, "hackathon-app", "" /* no name */, nil, runNewOptions{
+	err = runNew(context.Background(), &buf, "hackathon-app", "" /* no name */, allVarFlags, runNewOptions{
 		interactive: true,
 		nameFormOpts: []render.FormOption{func(f *huh.Form) *huh.Form {
 			return f.WithInput(r).WithOutput(io.Discard).WithAccessible(true)

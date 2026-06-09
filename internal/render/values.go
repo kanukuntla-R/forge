@@ -22,7 +22,12 @@ type FormOption func(*huh.Form) *huh.Form
 //  1. Defaults from the manifest
 //  2. jsonVars (decoded from --json stdin)
 //  3. flagVars (parsed from --var KEY=VALUE flags)
-//  4. Interactive prompts via charmbracelet/huh for any still-missing values.
+//  4. Type validation and coercion.
+//
+// When interactive=true (walkthrough mode), ALL variables not explicitly
+// supplied via jsonVars or flagVars are prompted — defaults appear pre-filled,
+// user hits Enter to accept or types to change.
+// When interactive=false, variables with no value at all return an error.
 //
 // formOpts are applied to the huh form before it runs; production callers
 // omit them.
@@ -77,10 +82,28 @@ func Resolve(
 		result[v.Name] = coerced
 	}
 
-	// 5. Prompt for any variables still missing.
+	// 5. Track which variables were explicitly provided by the caller so we
+	//    know which ones to skip during interactive walkthrough.
+	explicitlySet := make(map[string]bool, len(jsonVars)+len(flagVars))
+	for k := range jsonVars {
+		explicitlySet[k] = true
+	}
+	for _, kv := range flagVars {
+		if idx := strings.IndexByte(kv, '='); idx > 0 {
+			explicitlySet[kv[:idx]] = true
+		}
+	}
+
+	// 6. Collect variables to prompt for (or error on if non-interactive).
+	//    Walkthrough mode: prompt for everything not explicitly supplied (defaults pre-filled).
+	//    Non-interactive: only error on variables with no value at all.
 	var missing []manifest.Variable
 	for _, v := range m.Variables {
-		if _, ok := result[v.Name]; !ok {
+		if explicitlySet[v.Name] {
+			continue
+		}
+		_, hasValue := result[v.Name]
+		if interactive || !hasValue {
 			missing = append(missing, v)
 		}
 	}

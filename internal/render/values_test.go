@@ -260,6 +260,68 @@ func TestResolveInteractivePromptsForMissing(t *testing.T) {
 	}
 }
 
+func TestResolveInteractiveWalksThroughAllVariables(t *testing.T) {
+	// Both variables have defaults; in walkthrough mode both should be prompted.
+	m := makeManifest(
+		stringVar("description", "default description"),
+		stringVar("app_name", "default name"),
+	)
+
+	r, w := io.Pipe()
+	go func() {
+		defer w.Close()
+		fmt.Fprintln(w, "custom description")
+		fmt.Fprintln(w, "custom name")
+	}()
+	defer r.Close()
+
+	got, err := render.Resolve(m, nil, nil, true,
+		func(f *huh.Form) *huh.Form {
+			return f.WithInput(r).WithOutput(io.Discard).WithAccessible(true)
+		},
+	)
+	if err != nil {
+		t.Fatalf("Resolve() error: %v", err)
+	}
+	if got["description"] != "custom description" {
+		t.Errorf("description = %q, want %q", got["description"], "custom description")
+	}
+	if got["app_name"] != "custom name" {
+		t.Errorf("app_name = %q, want %q", got["app_name"], "custom name")
+	}
+}
+
+func TestResolveInteractiveSkipsExplicitlySetVariables(t *testing.T) {
+	m := makeManifest(
+		stringVar("description", "default description"),
+		stringVar("app_name", "default name"),
+	)
+
+	r, w := io.Pipe()
+	go func() {
+		defer w.Close()
+		// Only one prompt fires — for app_name.
+		// description was supplied via flag, so it is skipped.
+		fmt.Fprintln(w, "prompted name")
+	}()
+	defer r.Close()
+
+	got, err := render.Resolve(m, nil, []string{"description=flag description"}, true,
+		func(f *huh.Form) *huh.Form {
+			return f.WithInput(r).WithOutput(io.Discard).WithAccessible(true)
+		},
+	)
+	if err != nil {
+		t.Fatalf("Resolve() error: %v", err)
+	}
+	if got["description"] != "flag description" {
+		t.Errorf("description = %q, want flag value %q", got["description"], "flag description")
+	}
+	if got["app_name"] != "prompted name" {
+		t.Errorf("app_name = %q, want prompted value %q", got["app_name"], "prompted name")
+	}
+}
+
 // --- ToTemplateContext ---
 
 func TestToTemplateContextPascalCase(t *testing.T) {
