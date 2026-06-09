@@ -9,3 +9,12 @@
 # Future build output we might add
 /dist/
 /build/
+
+# Test scaffolds (created by manual `./forge new` runs in the repo root)
+/demo/
+/test-*/
+/*-scratch/
+
+# Absolute-path test artifacts that leaked into the repo root
+/home/
+/tmp/
