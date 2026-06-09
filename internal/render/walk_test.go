@@ -137,6 +137,43 @@ func TestWriteBlueprintPreservesSubdirectoryStructure(t *testing.T) {
 	if !bytes.Contains(got, []byte("Hello")) {
 		t.Errorf("rendered file should contain 'Hello', got %q", got)
 	}
+
+	// Files must be 0644 and directories 0755 regardless of source modes.
+	checkMode(t, filepath.Join(target, "app", "page.tsx"), 0o644)
+	checkMode(t, filepath.Join(target, "public", "logo.svg"), 0o644)
+	checkMode(t, filepath.Join(target, "app"), 0o755)
+	checkMode(t, filepath.Join(target, "public"), 0o755)
+}
+
+// TestWriteBlueprintIgnoresSourceModes confirms that unusual source modes in the
+// embedded FS (e.g. 0000 or 0444 from //go:embed) are never propagated to disk.
+func TestWriteBlueprintIgnoresSourceModes(t *testing.T) {
+	bp := newSyntheticBlueprint(fstest.MapFS{
+		"template/locked.txt":    &fstest.MapFile{Data: []byte("a"), Mode: 0000},
+		"template/readonly.txt":  &fstest.MapFile{Data: []byte("b"), Mode: 0444},
+		"template/sub/file.txt":  &fstest.MapFile{Data: []byte("c"), Mode: 0000},
+	})
+
+	target := filepath.Join(t.TempDir(), "output")
+	if _, err := render.WriteBlueprint(bp, map[string]any{}, target); err != nil {
+		t.Fatalf("WriteBlueprint() error: %v", err)
+	}
+
+	checkMode(t, filepath.Join(target, "locked.txt"), 0o644)
+	checkMode(t, filepath.Join(target, "readonly.txt"), 0o644)
+	checkMode(t, filepath.Join(target, "sub", "file.txt"), 0o644)
+	checkMode(t, filepath.Join(target, "sub"), 0o755)
+}
+
+func checkMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %q: %v", path, err)
+	}
+	if got := info.Mode().Perm(); got != want {
+		t.Errorf("%s mode = %04o, want %04o", path, got, want)
+	}
 }
 
 func TestWriteBlueprintHackathonAppRealBlueprint(t *testing.T) {

@@ -13,8 +13,11 @@ import (
 // WriteBlueprint renders all files from bp.FS/template/ into targetPath.
 //
 // Files ending in .tmpl are rendered with ctx and written without the .tmpl
-// suffix. All other files are copied verbatim (binary-safe). Directory
-// structure and file permission bits are preserved exactly.
+// suffix. All other files are copied verbatim (binary-safe).
+//
+// Source permission bits from the embedded FS are NOT propagated — Go's
+// //go:embed strips them, so they are meaningless at the target. All
+// regular files are written as 0644 and all directories as 0755.
 //
 // All writes go through a Stager so a single failure rolls back the entire
 // operation. Callers must pass ctx with PascalCase keys — use
@@ -47,16 +50,8 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 
 		rel := strings.TrimPrefix(srcPath, templateRoot+"/")
 
-		info, err := d.Info()
-		if err != nil {
-			return fmt.Errorf("stat %q: %w", srcPath, err)
-		}
-
 		if d.IsDir() {
-			// Ensure owner rwx so we can write files into the staged directory.
-			// Source dirs (especially fstest.MapFS synthetics) may lack the write bit.
-			mode := info.Mode().Perm() | 0o700
-			return stager.Mkdir(rel, mode)
+			return stager.Mkdir(rel, 0o755)
 		}
 
 		content, err := fs.ReadFile(bp.FS, srcPath)
@@ -74,7 +69,7 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 			outPath = strings.TrimSuffix(rel, ".tmpl")
 		}
 
-		if err := stager.WriteFile(outPath, content, info.Mode().Perm()); err != nil {
+		if err := stager.WriteFile(outPath, content, 0o644); err != nil {
 			return fmt.Errorf("writing %q: %w", outPath, err)
 		}
 		written = append(written, outPath)

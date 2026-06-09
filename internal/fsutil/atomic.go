@@ -73,12 +73,18 @@ func (s *Stager) Mkdir(relPath string, mode os.FileMode) error {
 // Commit moves the staging directory to targetPath atomically via os.Rename.
 // Returns an error if targetPath already exists — forge never overwrites without
 // explicit consent (v0.1 safety invariant).
+//
+// os.MkdirTemp creates the staging dir with mode 0700; we chmod it to 0755
+// after the rename so the output root has standard directory permissions.
 func (s *Stager) Commit() error {
 	if _, err := os.Stat(s.targetPath); err == nil {
 		return fmt.Errorf("target %q already exists; refusing to overwrite", s.targetPath)
 	}
 	if err := os.Rename(s.tmpDir, s.targetPath); err != nil {
 		return fmt.Errorf("committing staged files to %q: %w", s.targetPath, err)
+	}
+	if err := os.Chmod(s.targetPath, 0755); err != nil {
+		return fmt.Errorf("setting permissions on %q: %w", s.targetPath, err)
 	}
 	return nil
 }
