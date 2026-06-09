@@ -1,0 +1,28 @@
+export default function Home() {
+  return (
+    <main className="min-h-screen p-8">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-4xl font-bold mb-4">{{ .Name }}</h1>
+        <p className="text-muted-foreground mb-8">{{ .Description }}</p>
+
+        <section>
+          <h2 className="text-xl font-semibold mb-4">What&apos;s wired up</h2>
+          <ul className="space-y-2">
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              <span>Tailwind CSS</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              <span>shadcn/ui</span>
+            </li>
+            {{/* AI status row inserted here next session */}}
+            {{/* Database status row inserted here next session */}}
+            {{/* Auth status row inserted here next session */}}
+            {{/* Dark mode toggle inserted here next session */}}
+          </ul>
+        </section>
+      </div>
+    </main>
+  );
+}
