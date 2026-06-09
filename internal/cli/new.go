@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 
+	"github.com/charmbracelet/huh"
+	cterm "github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
 	"github.com/kanukuntla-r/forge/internal/blueprint"
@@ -13,7 +16,7 @@ import (
 )
 
 var newCmd = &cobra.Command{
-	Use:   "new <blueprint> <name>",
+	Use:   "new <blueprint> [name]",
 	Short: "Scaffold a new project from a blueprint",
 	Long: `Scaffold a new project from a blueprint.
 
@@ -21,23 +24,37 @@ Examples:
   forge new hackathon-app my-idea
   forge new hackathon-app my-idea --var with_ai=false
   forge new hackathon-app my-idea --var package_manager=npm --verbose`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		varFlags, _ := cmd.Flags().GetStringArray("var")
 		verbose, _ := cmd.Flags().GetBool("verbose")
-		return runNew(cmd.Context(), cmd.OutOrStdout(), args[0], args[1], varFlags, verbose)
+		yes, _ := cmd.Flags().GetBool("yes")
+
+		blueprintName := args[0]
+		projectName := ""
+		if len(args) >= 2 {
+			projectName = args[1]
+		}
+
+		interactive := cterm.IsTerminal(os.Stdout.Fd()) && !yes
+		return runNew(cmd.Context(), cmd.OutOrStdout(), blueprintName, projectName, varFlags, verbose, interactive)
 	},
 }
 
 func init() {
 	newCmd.Flags().StringArray("var", nil, "Set a variable (KEY=VALUE, repeatable)")
 	newCmd.Flags().BoolP("verbose", "v", false, "Print the list of files written")
+	newCmd.Flags().Bool("yes", false, "Accept all defaults; disable interactive prompts")
 	rootCmd.AddCommand(newCmd)
 }
 
+// namePattern matches valid project names: starts with a letter, followed by
+// letters, digits, underscores, or hyphens.
+var namePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
+
 // runNew contains the real logic for `forge new`. RunE is a thin wrapper so
 // this function is directly testable without constructing a cobra.Command.
-func runNew(ctx context.Context, out io.Writer, blueprintName, projectName string, varFlags []string, verbose bool) error {
+func runNew(ctx context.Context, out io.Writer, blueprintName, projectName string, varFlags []string, verbose, interactive bool, nameFormOpts ...render.FormOption) error {
 	_ = ctx // reserved for post-create hooks in M4
 
 	r, err := blueprint.NewRegistry()
@@ -50,7 +67,17 @@ func runNew(ctx context.Context, out io.Writer, blueprintName, projectName strin
 		return err // Find already produces a user-friendly message
 	}
 
-	values, err := render.Resolve(bp.Manifest, nil, varFlags, false)
+	if projectName == "" {
+		if !interactive {
+			return fmt.Errorf("project name is required when stdout is not a terminal; pass it as an argument")
+		}
+		projectName, err = promptProjectName(nameFormOpts...)
+		if err != nil {
+			return err
+		}
+	}
+
+	values, err := render.Resolve(bp.Manifest, nil, varFlags, interactive)
 	if err != nil {
 		return fmt.Errorf("resolving variables: %w", err)
 	}
@@ -84,4 +111,27 @@ func runNew(ctx context.Context, out io.Writer, blueprintName, projectName strin
 		}
 	}
 	return nil
+}
+
+// promptProjectName prompts for a project name with name validation.
+// opts are applied to the huh form before running, primarily for test IO injection.
+func promptProjectName(opts ...render.FormOption) (string, error) {
+	var name string
+	field := huh.NewInput().
+		Title("Project name").
+		Value(&name).
+		Validate(func(s string) error {
+			if !namePattern.MatchString(s) {
+				return fmt.Errorf("must start with a letter and contain only letters, digits, _ or -")
+			}
+			return nil
+		})
+	form := huh.NewForm(huh.NewGroup(field))
+	for _, opt := range opts {
+		form = opt(form)
+	}
+	if err := form.Run(); err != nil {
+		return "", fmt.Errorf("prompt: %w", err)
+	}
+	return name, nil
 }
