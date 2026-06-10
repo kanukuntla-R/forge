@@ -1,0 +1,28 @@
+version: "1"
+project:
+  name: "{{ .Name }}"
+  description: "{{ .Description }}"
+nodes:
+  - id: app
+    type: module
+    label: App
+    path: app/
+  - id: app/page
+    type: page
+    label: Home
+    path: app/page.tsx
+  - id: app/layout
+    type: layout
+    label: RootLayout
+    path: app/layout.tsx
+  - id: lib/utils
+    type: module
+    label: utils
+    path: lib/utils.ts
+edges:
+  - from: app/page
+    to: app/layout
+    type: wrapped_by
+  - from: app/page
+    to: lib/utils
+    type: imports

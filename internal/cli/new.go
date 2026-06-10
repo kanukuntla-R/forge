@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kanukuntla-r/forge/internal/blueprint"
+	"github.com/kanukuntla-r/forge/internal/graph"
 	"github.com/kanukuntla-r/forge/internal/render"
 )
 
@@ -148,12 +149,28 @@ func runNew(ctx context.Context, out io.Writer, blueprintName, projectName strin
 		return fmt.Errorf("writing blueprint: %w", err)
 	}
 
+	// Emit knowledge graph alongside the project, if the blueprint provides one.
+	g, err := graph.Render(bp, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering knowledge graph: %w", err)
+	}
+	graphWritten := false
+	if g != nil {
+		if err := graph.Write(g, targetPath); err != nil {
+			return fmt.Errorf("writing knowledge graph: %w", err)
+		}
+		graphWritten = true
+	}
+
 	fmt.Fprintf(out, "Created %s project at %s\n", blueprintName, targetPath)
 	fmt.Fprintf(out, "%d files written\n", len(written))
 	if opts.verbose {
 		for _, f := range written {
 			fmt.Fprintf(out, "  %s\n", f)
 		}
+	}
+	if graphWritten {
+		fmt.Fprintln(out, "Knowledge graph written to .understand-anything/knowledge-graph.json")
 	}
 	return nil
 }
