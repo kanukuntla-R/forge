@@ -774,3 +774,52 @@ Manifest prompt strings were updated to reflect the actual providers.
 **What shipped**: `forge new` ships one database choice per blueprint (Supabase for hackathon-app). Support for graph databases, time-series, Redis, S3, etc. is deferred to `forge add` in M6.
 
 **Why**: encoding twelve storage paradigms into a single blueprint's variables would make the manifest unmanageable and would couple unrelated technology choices into one decision point. `forge add db <kind>` is the right shape for layered database additions to an existing project. The architecture supports this cleanly via the project marker file (`.forge/project.json`) tracking applied extensions.
+
+
+
+---
+
+## Post-v0.1 roadmap: live code analyzer (M8)
+
+After v0.1 ships, the next major addition to forge is a *live code analyzer* that produces an up-to-date knowledge graph by parsing the actual code in a project, not just the blueprint's declared structure.
+
+### The user need
+
+A developer working on a forge-scaffolded project (or any TypeScript/JavaScript project) wants to see, at any moment:
+- Which files exist and how they're organized
+- How files import each other
+- Which functions call which other functions, across file boundaries
+- How the architecture has evolved since scaffolding
+
+The static graph emitted at scaffolding time (M3) shows only the starting state. As the developer adds files, refactors, and integrates new libraries, the graph goes stale. The live analyzer regenerates it from current code.
+
+### How it differs from M3
+
+| Aspect | M3 (static) | M8 (live) |
+|--------|-------------|-----------|
+| Source of truth | Blueprint's `graph.yaml` | Actual project code |
+| When run | At scaffolding time, once | On-demand, repeatedly |
+| Output | Snapshot of intended structure | Reflection of current code |
+| Accuracy | Drifts as code evolves | Always current at moment of run |
+
+### Architecture sketch
+
+- New command: `forge graph refresh` — re-analyze current directory, rewrite `.understand-anything/knowledge-graph.json`
+- TypeScript parsing via Node subprocess (forge invokes `node` with a known script) or via embedded TreeSitter
+- Import resolution following Next.js/tsconfig path aliases (`@/lib/foo` → `./lib/foo.ts`)
+- Function-call tracing via AST traversal, not just import scanning
+- Same JSON schema as M3, so the dashboard doesn't need to know which source generated the graph
+- Optional file-watcher mode (`forge graph watch`) for auto-refresh on save
+
+### Why deferred
+
+Building a correct TypeScript analyzer is genuinely multi-week work. v0.1 ships sooner if we keep M3 small and the live analyzer becomes its own milestone with appropriate scope and time. The M3 graph schema is designed so that M8 can swap the data source without changing the dashboard contract.
+
+### Trigger for starting M8
+
+Start M8 after v0.1 ships and at least one of these is true:
+- A real user (you, or someone else) actually hits the "static graph is stale" pain
+- v0.2 is being scoped and this is a high-value addition
+- A weekend of unscheduled time wants to be filled with a satisfying greenfield project
+
+Don't start M8 before v0.1 ships. The scope creep is the trap.
