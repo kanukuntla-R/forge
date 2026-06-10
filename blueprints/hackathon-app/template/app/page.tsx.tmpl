@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+{{ end -}}{{ if .WithAuth }}import Link from "next/link";
+
 {{ end -}}{{ if .WithDarkMode }}import { ThemeToggle } from "@/components/theme-toggle";
 
 {{ end -}}export default function Home() {
@@ -33,6 +35,12 @@ import { useState } from "react";
       </div>
 {{ end -}}
       <div className="max-w-2xl mx-auto">
+{{ if .WithAuth -}}
+        <nav className="flex gap-4 mb-6 justify-end text-sm">
+          <Link href="/login" className="underline underline-offset-4">Sign in</Link>
+          <Link href="/signup" className="underline underline-offset-4">Sign up</Link>
+        </nav>
+{{ end -}}
         <h1 className="text-4xl font-bold mb-4">{{ .Name }}</h1>
         <p className="text-muted-foreground mb-8">{{ .Description }}</p>
 
@@ -48,8 +56,8 @@ import { useState } from "react";
               <span>shadcn/ui</span>
             </li>
             {{ if .WithAi }}<li>✓ Anthropic AI client at /api/ai</li>{{ else }}<li>- AI (disabled)</li>{{ end }}
-            {{/* Database status row */}}
-            {{/* Auth status row */}}
+            {{ if .WithDatabase }}<li>✓ Supabase database client</li>{{ else }}<li>- Database (disabled)</li>{{ end }}
+            {{ if .WithAuth }}<li>✓ Supabase auth + middleware</li>{{ else }}<li>- Auth (disabled)</li>{{ end }}
             {{ if .WithDarkMode }}<li>✓ Dark mode toggle</li>{{ else }}<li>- Dark mode (disabled)</li>{{ end }}
           </ul>
         </section>
