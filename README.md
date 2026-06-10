@@ -8,7 +8,15 @@ Status: under active development. v0.1 in progress.
 
 - `forge --help` and subcommand help text
 - `forge list` and `forge list --json` (lists embedded blueprints)
-- Variable resolution: defaults → JSON stdin → `--var` flags
+- `forge new <blueprint> <name>` with full input contract:
+  - Defaults from manifest
+  - `--var KEY=VALUE` repeatable flags
+  - JSON stdin via `--json`
+  - Interactive walkthrough form (when run in a TTY)
+  - `--yes` to suppress prompts
+- Atomic writes via stage-then-rename
+- Conditional file inclusion in templates
+- Hackathon-app blueprint: Next.js 14 + Tailwind + shadcn, with optional Anthropic AI integration and dark mode toggle (auth + database coming next)
 
 ## What's coming next
 
