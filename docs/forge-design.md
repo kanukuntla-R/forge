@@ -686,3 +686,91 @@ When you start implementation:
 5. Commit `blueprints/hackathon-app/` to the repo; it's embedded into the binary via `//go:embed blueprints/*`.
 6. Match the UA JSON schema exactly — the dashboard is unforgiving about missing fields.
 7. Standard Go conventions throughout: `gofmt`, `golangci-lint`, table-driven tests, error wrapping with `%w`, no panics in library code, contexts for anything that could block.
+
+---
+
+## Design changes during implementation
+
+This section records design decisions that diverged from the original v0.1 plan above. They're documented here so future-you (and future Claude Code sessions) can see what's actually shipping vs. what was proposed, without having to diff git history.
+
+### Interactive walkthrough mode
+
+**Original design**: prompts fire only for variables that have no default and weren't supplied via flags or JSON. If everything has a default, no prompts appear.
+
+**What shipped**: when `interactive=true` (TTY detected, `--yes` not set), prompts fire for *all* variables not explicitly supplied via JSON or flags — even those with defaults. The default value is pre-filled in the form; users hit Enter to accept or type to change.
+
+**Why**: when a user runs `forge new hackathon-app` interactively, they want to *see* the available choices. Defaulting everything silently makes the feature surface invisible. Agents driving forge programmatically still get the strict behavior via `--yes`, `--json`, or by supplying all variables via flags.
+
+Implementation: `internal/render/values.go` tracks an `explicitlySet` map of variables supplied by JSON/flags, then prompts for everything else when interactive.
+
+### Conditional file inclusion via empty-render-skip
+
+**Original design**: manifest-level `when:` field on file entries to mark them as conditional. (See "Resolved questions" #1 above.)
+
+**What shipped**: simpler mechanism — if a `.tmpl` file renders to whitespace-only content, the walker skips writing it entirely. Blueprint authors wrap an entire file in `{{- if .WithFeature -}}...{{- end -}}` and the empty render handles the conditional inclusion.
+
+**Why**: the manifest-level `when:` field would have required parallel data structures (file metadata in YAML, file content on disk) that could drift apart. Empty-render-skip puts the conditional logic next to the content it controls. Single source of truth.
+
+Implementation: `internal/render/walk.go` checks `strings.TrimSpace(rendered) == ""` after rendering and returns nil without writing.
+
+### Lazy directory creation
+
+**Original design**: walker explicitly `Mkdir`s every directory it encounters during the walk.
+
+**What shipped**: walker skips explicit `Mkdir` calls; directories are created on demand when their first file is written (via `os.MkdirAll` inside the Stager's `WriteFile`).
+
+**Why**: with empty-render-skip, an entire subtree (e.g. `app/api/ai/` when `with_ai=false`) might contain no actual files. Explicit `Mkdir` would create empty directories as scaffold debris. Lazy creation means the output structure reflects exactly what was rendered.
+
+### Cross-filesystem staging
+
+**Original design**: stage files in a temp directory created via `os.MkdirTemp("", "forge-")`, then `os.Rename` into the target.
+
+**What shipped**: staging directory is created adjacent to the target via `os.MkdirTemp(filepath.Dir(target), ".forge-staging-")` — the leading dot keeps it hidden from `ls` defaults.
+
+**Why**: `/tmp` is typically a separate filesystem (tmpfs) from `/home`. `os.Rename` cannot cross filesystem boundaries — it returns "invalid cross-device link." Staging next to the target guarantees same-filesystem rename and preserves atomicity. Discovered during first end-to-end test of `forge new`.
+
+Implementation: `internal/fsutil/atomic.go` `NewStager` also `MkdirAll`s the target's parent before staging, so deep target paths work.
+
+### Standard mode permissions, not source-preserved
+
+**Original design**: implicit assumption that file modes from the embedded FS would be preserved on the output.
+
+**What shipped**: all regular files written as `0644`, all directories as `0755`. Source modes from `//go:embed` are ignored.
+
+**Why**: Go's `//go:embed` strips file permissions — every embedded file reports `0444` (read-only). Preserving that mode produces unwritable scaffolded files, which makes the scaffold unusable for editing. Setting standard modes unconditionally is simpler than trying to reconstruct source intent. Executable bits for shell scripts will be handled via filename extension or manifest hint when a blueprint needs them; not in v0.1.
+
+Implementation: `internal/render/walk.go` hardcodes `0o644` for files, `0o755` for directories. `internal/fsutil/atomic.go` `Commit` chmods the project root to `0o755` after rename (since `os.MkdirTemp` creates the staging dir as `0700`).
+
+### Optional feature defaults flipped to `false`
+
+**Original design**: `with_ai`, `with_database`, `with_auth`, `with_dark_mode` default to `true` in the manifest.
+
+**What shipped**: all four default to `false`.
+
+**Why**: walking through the interactive form, hitting Enter on every prompt now produces a minimal scaffold rather than a maximally-configured one. Minimal scaffolds always work (no env vars required to boot). Maximal scaffolds require API keys, Supabase projects, etc. Opt-in to features feels right; opt-out of features feels punitive when something fails because a key is missing.
+
+### `runNewOptions` struct refactor
+
+**Original design**: not specified — `runNew` would take whatever positional parameters it needed.
+
+**What shipped**: `runNew` takes a `runNewOptions` struct as its last parameter, bundling `verbose`, `interactive`, `useJSON`, `stdin`, and `nameFormOpts`.
+
+**Why**: by the time `--json` stdin was added, `runNew` was at seven positional parameters and growing. The struct keeps the signature stable as new flags arrive. The `stdin io.Reader` field also gives tests a clean injection seam for piped JSON input without monkey-patching `os.Stdin`.
+
+### Auth and database provider choice: Supabase, not Clerk + libsql
+
+**Original design**: `with_auth` wires Clerk; `with_database` wires libsql (SQLite). Independent providers.
+
+**What shipped**: both `with_auth` and `with_database` use Supabase. Single provider for both, generous free tier, matches the developer's existing workflow.
+
+**Why**: Clerk pricing scales aggressively past 10K MAU; libsql works for hackathons but doesn't transfer to a real production app. Supabase Auth's free tier covers 50K MAU, Postgres is hackathon-grade out of the box, and using one provider for both means one set of env vars and one client setup. The trade-off (slightly more setup on first run vs. zero-config libsql) is acceptable because hackathons usually need both auth and database together anyway.
+
+Manifest prompt strings were updated to reflect the actual providers.
+
+### Multi-database support deferred to M6
+
+**Original design**: not explicitly considered.
+
+**What shipped**: `forge new` ships one database choice per blueprint (Supabase for hackathon-app). Support for graph databases, time-series, Redis, S3, etc. is deferred to `forge add` in M6.
+
+**Why**: encoding twelve storage paradigms into a single blueprint's variables would make the manifest unmanageable and would couple unrelated technology choices into one decision point. `forge add db <kind>` is the right shape for layered database additions to an existing project. The architecture supports this cleanly via the project marker file (`.forge/project.json`) tracking applied extensions.
