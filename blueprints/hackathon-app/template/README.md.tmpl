@@ -1,12 +1,26 @@
 # {{ .Name }}
 
 {{ .Description }}
+{{ if or .WithAuth .WithDatabase }}
+## Before running
 
+This project uses [Supabase](https://supabase.com) for {{ if and .WithAuth .WithDatabase }}auth and database{{ else if .WithAuth }}authentication{{ else }}database{{ end }}.
+
+1. Create a free project at [supabase.com/dashboard](https://supabase.com/dashboard)
+2. Copy `.env.example` to `.env.local`
+3. From your Supabase project's Settings → API page, copy:
+   - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
+   - anon public key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+{{ if .WithAuth }}4. In Authentication → URL Configuration:
+   - **Site URL**: `http://localhost:3000` (or your dev URL)
+   - **Redirect URLs**: add `http://localhost:3000/**`
+{{ end }}
+{{ end }}
 ## Getting started
 
 ```bash
-{{ .PackageManager }} install
-{{ .PackageManager }} dev
+pnpm install
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to see the app.
