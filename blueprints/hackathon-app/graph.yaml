@@ -3,10 +3,6 @@ project:
   name: "{{ .Name }}"
   description: "{{ .Description }}"
 nodes:
-  - id: app
-    type: module
-    label: App
-    path: app/
   - id: app/page
     type: page
     label: Home
@@ -15,14 +11,88 @@ nodes:
     type: layout
     label: RootLayout
     path: app/layout.tsx
+  - id: components/ui/button
+    type: component
+    label: Button
+    path: components/ui/button.tsx
   - id: lib/utils
     type: module
     label: utils
-    path: lib/utils.ts
+    path: lib/utils.ts{{ if .WithAi }}
+  - id: lib/ai
+    type: module
+    label: AI client
+    path: lib/ai.ts
+  - id: app/api/ai/route
+    type: route
+    label: AI route
+    path: app/api/ai/route.ts{{ end }}{{ if .WithDarkMode }}
+  - id: components/theme-provider
+    type: component
+    label: ThemeProvider
+    path: components/theme-provider.tsx
+  - id: components/theme-toggle
+    type: component
+    label: ThemeToggle
+    path: components/theme-toggle.tsx{{ end }}{{ if or .WithAuth .WithDatabase }}
+  - id: lib/supabase/client
+    type: module
+    label: Supabase browser client
+    path: lib/supabase/client.ts
+  - id: lib/supabase/server
+    type: module
+    label: Supabase server client
+    path: lib/supabase/server.ts{{ end }}{{ if .WithAuth }}
+  - id: middleware
+    type: middleware
+    label: Auth middleware
+    path: middleware.ts
+  - id: app/login/page
+    type: page
+    label: Login
+    path: app/login/page.tsx
+  - id: app/signup/page
+    type: page
+    label: Signup
+    path: app/signup/page.tsx
+  - id: app/auth/callback/route
+    type: route
+    label: Auth callback
+    path: app/auth/callback/route.ts{{ end }}
 edges:
   - from: app/page
     to: app/layout
     type: wrapped_by
   - from: app/page
+    to: components/ui/button
+    type: uses
+  - from: app/page
     to: lib/utils
+    type: imports{{ if .WithAi }}
+  - from: app/api/ai/route
+    to: lib/ai
     type: imports
+  - from: app/page
+    to: app/api/ai/route
+    type: calls{{ end }}{{ if .WithDarkMode }}
+  - from: app/layout
+    to: components/theme-provider
+    type: wraps
+  - from: app/page
+    to: components/theme-toggle
+    type: renders{{ end }}{{ if .WithAuth }}
+  - from: middleware
+    to: lib/supabase/server
+    type: imports
+  - from: app/login/page
+    to: lib/supabase/client
+    type: imports
+  - from: app/signup/page
+    to: lib/supabase/client
+    type: imports
+  - from: app/auth/callback/route
+    to: lib/supabase/server
+    type: imports
+  - from: app/layout
+    to: middleware
+    type: protected_by{{ end }}
