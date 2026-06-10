@@ -21,3 +21,13 @@
 
 /demo-*/
 /interactive-*/
+
+# Scaffolded test projects from `./forge new` runs in the repo root
+# Any pattern matching a kebab-case name at repo root
+/demo/
+/demo-*/
+/interactive-*/
+/test-*/
+/verify-*/
+/*-scratch/
+/*-test/
