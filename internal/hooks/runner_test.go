@@ -19,7 +19,7 @@ func mkHook(name, shell string, optional bool) manifest.Hook {
 
 func TestRunNoHooks(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if err := hooks.Run(context.Background(), nil, t.TempDir(), nil, &stdout, &stderr); err != nil {
+	if _, err := hooks.Run(context.Background(), nil, t.TempDir(), nil, &stdout, &stderr, false); err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 }
@@ -27,7 +27,7 @@ func TestRunNoHooks(t *testing.T) {
 func TestRunSingleSuccessfulHook(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	hs := []manifest.Hook{mkHook("say-hello", "echo hello", false)}
-	if err := hooks.Run(context.Background(), hs, t.TempDir(), nil, &stdout, &stderr); err != nil {
+	if _, err := hooks.Run(context.Background(), hs, t.TempDir(), nil, &stdout, &stderr, false); err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 	out := stdout.String()
@@ -42,7 +42,7 @@ func TestRunTemplateRender(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	hs := []manifest.Hook{mkHook("greet", "echo {{ .Greeting }}", false)}
 	tmplCtx := map[string]any{"Greeting": "world"}
-	if err := hooks.Run(context.Background(), hs, t.TempDir(), tmplCtx, &stdout, &stderr); err != nil {
+	if _, err := hooks.Run(context.Background(), hs, t.TempDir(), tmplCtx, &stdout, &stderr, false); err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 	if !strings.Contains(stdout.String(), "world") {
@@ -56,7 +56,7 @@ func TestRunOptionalFailure(t *testing.T) {
 		mkHook("will-fail", "false", true),
 		mkHook("sentinel", "echo sentinel-ok", false),
 	}
-	if err := hooks.Run(context.Background(), hs, t.TempDir(), nil, &stdout, &stderr); err != nil {
+	if _, err := hooks.Run(context.Background(), hs, t.TempDir(), nil, &stdout, &stderr, false); err != nil {
 		t.Fatalf("Run() error = %v, want nil (optional failure should not propagate)", err)
 	}
 	if !strings.Contains(stderr.String(), "optional hook failed") {
@@ -70,7 +70,7 @@ func TestRunOptionalFailure(t *testing.T) {
 func TestRunRequiredFailure(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	hs := []manifest.Hook{mkHook("will-fail", "false", false)}
-	err := hooks.Run(context.Background(), hs, t.TempDir(), nil, &stdout, &stderr)
+	_, err := hooks.Run(context.Background(), hs, t.TempDir(), nil, &stdout, &stderr, false)
 	if err == nil {
 		t.Fatal("Run() error = nil, want non-nil for required hook failure")
 	}
@@ -86,7 +86,7 @@ func TestRunStopsAfterRequiredFailure(t *testing.T) {
 		mkHook("write-sentinel", "touch sentinel.txt", false),
 	}
 	var stdout, stderr bytes.Buffer
-	_ = hooks.Run(context.Background(), hs, workDir, nil, &stdout, &stderr)
+	_, _ = hooks.Run(context.Background(), hs, workDir, nil, &stdout, &stderr, false)
 
 	if _, err := os.Stat(filepath.Join(workDir, "sentinel.txt")); err == nil {
 		t.Error("sentinel.txt exists; second hook should not have run after required failure")
@@ -100,7 +100,7 @@ func TestRunCancellation(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	hs := []manifest.Hook{mkHook("long-sleep", "sleep 5", false)}
 	start := time.Now()
-	err := hooks.Run(ctx, hs, t.TempDir(), nil, &stdout, &stderr)
+	_, err := hooks.Run(ctx, hs, t.TempDir(), nil, &stdout, &stderr, false)
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -115,7 +115,7 @@ func TestRunWorkDir(t *testing.T) {
 	workDir := t.TempDir()
 	var stdout, stderr bytes.Buffer
 	hs := []manifest.Hook{mkHook("print-wd", "pwd", false)}
-	if err := hooks.Run(context.Background(), hs, workDir, nil, &stdout, &stderr); err != nil {
+	if _, err := hooks.Run(context.Background(), hs, workDir, nil, &stdout, &stderr, false); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 	resolvedWorkDir, _ := filepath.EvalSymlinks(workDir)

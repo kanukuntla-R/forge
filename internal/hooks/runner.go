@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -10,33 +11,66 @@ import (
 	"github.com/kanukuntla-r/forge/internal/render"
 )
 
+// HookResult records the outcome of a single post-create hook.
+type HookResult struct {
+	Name    string
+	Success bool
+	// Output is non-empty only when capture=true and Success=false.
+	Output string
+}
+
 // Run executes each hook in order in workDir.
 // Each hook's Shell field is template-rendered with tmplCtx before execution.
-// Output streams live to stdout/stderr.
-// Returns the first non-optional failure; optional failures are reported
-// via stderr but do not stop execution.
-func Run(ctx context.Context, hooks []manifest.Hook, workDir string, tmplCtx map[string]any, stdout, stderr io.Writer) error {
-	for i, h := range hooks {
-		fmt.Fprintf(stdout, "Running hook (%d/%d): %s\n", i+1, len(hooks), h.Name)
+// When capture is false, each hook's stdout and stderr stream live to the
+// provided writers. When capture is true, output is buffered per hook;
+// on failure the buffer is placed in HookResult.Output; on success it is
+// discarded.
+// Returns the partial results slice alongside the first required-hook error.
+func Run(ctx context.Context, hs []manifest.Hook, workDir string, tmplCtx map[string]any, stdout, stderr io.Writer, capture bool) ([]HookResult, error) {
+	results := make([]HookResult, 0, len(hs))
+
+	for i, h := range hs {
+		if !capture {
+			fmt.Fprintf(stdout, "Running hook (%d/%d): %s\n", i+1, len(hs), h.Name)
+		}
 
 		renderedShell, err := render.Render(fmt.Sprintf("hook[%d].shell", i), h.Shell, tmplCtx)
 		if err != nil {
-			return fmt.Errorf("rendering hook %q: %w", h.Name, err)
+			results = append(results, HookResult{Name: h.Name, Success: false})
+			return results, fmt.Errorf("rendering hook %q: %w", h.Name, err)
 		}
 
 		cmd := exec.CommandContext(ctx, "sh", "-c", renderedShell)
 		cmd.Dir = workDir
-		cmd.Stdout = stdout
-		cmd.Stderr = stderr
 
-		if err := cmd.Run(); err != nil {
+		var buf bytes.Buffer
+		if capture {
+			cmd.Stdout = &buf
+			cmd.Stderr = &buf
+		} else {
+			cmd.Stdout = stdout
+			cmd.Stderr = stderr
+		}
+
+		runErr := cmd.Run()
+		res := HookResult{Name: h.Name, Success: runErr == nil}
+		if runErr != nil && capture {
+			res.Output = buf.String()
+		}
+		results = append(results, res)
+
+		if runErr != nil {
 			if h.Optional {
-				fmt.Fprintf(stderr, "✗ %s (optional hook failed, continuing): %v\n", h.Name, err)
+				if !capture {
+					fmt.Fprintf(stderr, "✗ %s (optional hook failed, continuing): %v\n", h.Name, runErr)
+				}
 				continue
 			}
-			return fmt.Errorf("hook %q failed: %w", h.Name, err)
+			return results, fmt.Errorf("hook %q failed: %w", h.Name, runErr)
 		}
-		fmt.Fprintf(stdout, "✓ %s\n", h.Name)
+		if !capture {
+			fmt.Fprintf(stdout, "✓ %s\n", h.Name)
+		}
 	}
-	return nil
+	return results, nil
 }
