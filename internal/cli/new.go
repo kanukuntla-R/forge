@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/huh"
 	cterm "github.com/charmbracelet/x/term"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/kanukuntla-r/forge/internal/blueprint"
 	"github.com/kanukuntla-r/forge/internal/graph"
+	"github.com/kanukuntla-r/forge/internal/project"
 	"github.com/kanukuntla-r/forge/internal/render"
 )
 
@@ -162,6 +164,19 @@ func runNew(ctx context.Context, out io.Writer, blueprintName, projectName strin
 		graphWritten = true
 	}
 
+	// Write project marker so future `forge add` can detect this directory.
+	marker := project.Project{
+		Blueprint:         bp.Manifest.Name,
+		BlueprintVersion:  bp.Manifest.Version,
+		ForgeVersion:      "0.1.0-dev",
+		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
+		Variables:         values,
+		ExtensionsApplied: []project.ExtensionApplication{},
+	}
+	if err := project.Write(targetPath, marker); err != nil {
+		return fmt.Errorf("writing project marker: %w", err)
+	}
+
 	fmt.Fprintf(out, "Created %s project at %s\n", blueprintName, targetPath)
 	fmt.Fprintf(out, "%d files written\n", len(written))
 	if opts.verbose {
@@ -172,6 +187,7 @@ func runNew(ctx context.Context, out io.Writer, blueprintName, projectName strin
 	if graphWritten {
 		fmt.Fprintln(out, "Knowledge graph written to .understand-anything/knowledge-graph.json")
 	}
+	fmt.Fprintln(out, "Project marker written to .forge/project.json")
 	return nil
 }
 
