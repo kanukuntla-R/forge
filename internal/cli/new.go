@@ -16,6 +16,7 @@ import (
 
 	"github.com/kanukuntla-r/forge/internal/blueprint"
 	"github.com/kanukuntla-r/forge/internal/graph"
+	"github.com/kanukuntla-r/forge/internal/hooks"
 	"github.com/kanukuntla-r/forge/internal/project"
 	"github.com/kanukuntla-r/forge/internal/render"
 )
@@ -36,6 +37,7 @@ Examples:
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		yes, _ := cmd.Flags().GetBool("yes")
 		useJSON, _ := cmd.Flags().GetBool("json")
+		noHooks, _ := cmd.Flags().GetBool("no-hooks")
 
 		blueprintName := args[0]
 		projectName := ""
@@ -47,7 +49,9 @@ Examples:
 			verbose:     verbose,
 			interactive: cterm.IsTerminal(os.Stdout.Fd()) && !yes,
 			useJSON:     useJSON,
+			noHooks:     noHooks,
 			stdin:       os.Stdin,
+			stderr:      cmd.ErrOrStderr(),
 		})
 	},
 }
@@ -57,6 +61,7 @@ func init() {
 	newCmd.Flags().BoolP("verbose", "v", false, "Print the list of files written")
 	newCmd.Flags().Bool("yes", false, "Accept all defaults; disable interactive prompts")
 	newCmd.Flags().Bool("json", false, "Read variables from stdin as JSON (suppresses interactive prompts)")
+	newCmd.Flags().Bool("no-hooks", false, "skip post-create hooks (e.g. pnpm install)")
 	rootCmd.AddCommand(newCmd)
 }
 
@@ -65,7 +70,9 @@ type runNewOptions struct {
 	verbose      bool
 	interactive  bool
 	useJSON      bool
-	stdin        io.Reader        // source for --json reads; nil defaults to os.Stdin
+	noHooks      bool
+	stdin        io.Reader  // source for --json reads; nil defaults to os.Stdin
+	stderr       io.Writer  // hook stderr; nil defaults to os.Stderr
 	nameFormOpts []render.FormOption
 }
 
@@ -76,7 +83,6 @@ var namePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
 // runNew contains the real logic for `forge new`. RunE is a thin wrapper so
 // this function is directly testable without constructing a cobra.Command.
 func runNew(ctx context.Context, out io.Writer, blueprintName, projectName string, varFlags []string, opts runNewOptions) error {
-	_ = ctx // reserved for post-create hooks in M4
 
 	r, err := blueprint.NewRegistry()
 	if err != nil {
@@ -188,6 +194,17 @@ func runNew(ctx context.Context, out io.Writer, blueprintName, projectName strin
 		fmt.Fprintln(out, "Knowledge graph written to .understand-anything/knowledge-graph.json")
 	}
 	fmt.Fprintln(out, "Project marker written to .forge/project.json")
+
+	// Run post-create hooks unless --no-hooks was specified.
+	if !opts.noHooks && len(bp.Manifest.PostCreate) > 0 {
+		errOut := opts.stderr
+		if errOut == nil {
+			errOut = os.Stderr
+		}
+		if err := hooks.Run(ctx, bp.Manifest.PostCreate, targetPath, tmplCtx, out, errOut); err != nil {
+			return fmt.Errorf("running post-create hooks: %w", err)
+		}
+	}
 	return nil
 }
 
