@@ -775,8 +775,17 @@ Manifest prompt strings were updated to reflect the actual providers.
 
 **Why**: encoding twelve storage paradigms into a single blueprint's variables would make the manifest unmanageable and would couple unrelated technology choices into one decision point. `forge add db <kind>` is the right shape for layered database additions to an existing project. The architecture supports this cleanly via the project marker file (`.forge/project.json`) tracking applied extensions.
 
+### Empty-render-skip for conditional templates
 
+Templates wrapped entirely in `{{- if .Flag -}}...{{- end -}}` produce whitespace-only output when the flag is false. The walker (`internal/render/walk.go`) skips writing these — they don't appear as empty files in the scaffold. This lets blueprint authors write a single `.tmpl` file per feature without needing manifest-level `when:` filtering.
 
+Verified across the four optional features in hackathon-app: AI, dark mode, database, auth. Each contributes files that simply vanish when their flag is off.
+
+### graph.yaml as blueprint root sibling, not under template/
+
+The knowledge graph definition lives at `blueprints/<name>/graph.yaml`, alongside `manifest.yaml` rather than inside `template/`. The distinction: `template/` contains files that get rendered into the user's project; `graph.yaml` is metadata that describes the project, written separately to `.understand-anything/knowledge-graph.json`.
+
+This separation maps cleanly to authorial intent — when a blueprint author asks "what does this project look like?" they're writing `graph.yaml`. When they ask "what files does the project contain?" they're writing into `template/`.
 ---
 
 ## Post-v0.1 roadmap: live code analyzer (M8)

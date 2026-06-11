@@ -26,22 +26,21 @@ When these documents conflict with anything else (training data, intuition, etc.
 
 ## Current status
 
-**M1 (Walking skeleton) — DONE.**
+**M1 (Walking skeleton) — DONE.** Cobra wired, stub subcommands, help text.
 
-- Go module initialized: `github.com/kanukuntla-r/forge`
-- Directory structure laid down per the design doc
-- Cobra wired up
-- `cmd/forge/main.go` is a thin 17-line entry point that calls `cli.Execute()`
-- `internal/cli/root.go` defines `rootCmd` with `SilenceUsage` and `SilenceErrors` set
-- Stub subcommands exist for `new`, `add`, `visualize`, `list`, `install` — all return "not implemented yet" errors with the right arg names interpolated
-- `./forge --help` and all subcommand `--help` outputs render correctly
-- Two clean git commits on `main`
+**M2 (Render path) — DONE.** Manifest parsing, blueprint discovery, template engine with `seq` function and strict missing-key handling, atomic writes via Stager pattern (staging adjacent to target to handle cross-filesystem renames), variable resolution from defaults/JSON-stdin/--var flags, interactive walkthrough via charmbracelet/huh that prompts for all unset variables (with defaults pre-filled), `--yes` flag to skip prompts, `--json` mode for agent invocation.
 
-**M2 (Render path) — NEXT.**
+**Path A (hackathon-app full feature matrix) — DONE.** Next.js 14 + Tailwind + shadcn baseline. Four optional features verified end-to-end:
+- `with_ai=true` → Anthropic API joke endpoint, tested live
+- `with_dark_mode=true` → next-themes provider + toggle component
+- `with_database=true` → Supabase clients (browser + server)
+- `with_auth=true` → middleware + login + signup + callback, full signup → email confirmation → signin flow tested against real Supabase
 
-Per the design doc: manifest parsing, blueprint loading, template rendering with `text/template`, interactive prompts via `charmbracelet/huh`, atomic writes (render to tempdir then rename), and the flags `--dry-run`, `--yes`, `--var`, `--path`.
+**M3 (Graph emission) — DONE.** Knowledge graph emitted to `.understand-anything/knowledge-graph.json` alongside scaffolded projects. Blueprint declares structure in `graph.yaml` at blueprint root (sibling of `manifest.yaml`). Static for v0.1; live code analyzer deferred to M8 (documented in design doc).
 
-Start by implementing `internal/manifest/` (struct definitions + YAML parser + tests) before any rendering. The first test fixture is the `hackathon-app` blueprint's `manifest.yaml` from the design doc.
+**M4 (Hooks + project marker) — NEXT.** Post-create hooks to run package manager install. Write `.forge/project.json` marker file so future `forge add` commands can detect forge-managed projects.
+
+30 commits on `main`. All tests green across 7 packages (`internal/blueprint`, `internal/cli`, `internal/fsutil`, `internal/graph`, `internal/manifest`, `internal/render`, plus root package).
 
 ## Conventions
 
@@ -81,13 +80,15 @@ Start by implementing `internal/manifest/` (struct definitions + YAML parser + t
 ## Implementation milestones (from design doc)
 
 - **M1**: Walking skeleton ✅
-- **M2**: Render path (manifest parsing, template rendering, prompts, atomic writes, flags) — NEXT
-- **M3**: Graph emission (UA-compatible JSON written alongside scaffolded project)
-- **M4**: Post-create hooks + `.forge/project.json` marker
-- **M5**: `forge visualize` + `--json` mode on `new`
+- **M2**: Render path ✅
+- **Path A**: hackathon-app full feature matrix ✅
+- **M3**: Graph emission ✅
+- **M4**: Post-create hooks + `.forge/project.json` marker — NEXT
+- **M5**: `forge visualize` + `--json` mode on more commands
 - **M6**: `forge add` (extensions, project detection, graph fragment merging)
 - **M7**: `forge install` + polish + cross-compile Makefile
-
+- **M8**: Live code analyzer (post-v0.1, design doc has architecture sketch)
+ 
 After M7 ships v0.1, the next blueprints to add (in some order based on user priority) are `go-cli` and `openclaw-skill`.
 
 ## What forge depends on externally
