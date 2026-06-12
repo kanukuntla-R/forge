@@ -832,3 +832,40 @@ Start M8 after v0.1 ships and at least one of these is true:
 - A weekend of unscheduled time wants to be filled with a satisfying greenfield project
 
 Don't start M8 before v0.1 ships. The scope creep is the trap.
+
+---
+
+## Post-v0.1 roadmap: database as extension (M9)
+
+After v0.1 ships, restructure how the hackathon-app blueprint handles database choice. Move from "baked in at scaffold time via `with_database=true`" to "layered in via `forge add db <kind>` after scaffolding."
+
+### The user need
+
+Database choice isn't a starter-time decision. It evolves. A project might begin with SQLite for prototyping, move to Postgres for production, eventually shard to multiple stores. Forcing the choice at scaffold time means every change requires manual rework. Different projects also want different databases — Supabase for hackathons that need auth+db together, libsql for edge-deployed apps, Drizzle+Postgres for type-safe production code, MongoDB for document-heavy work.
+
+The `forge add db <kind>` shape lets users say "I now want a database" or "switch me to this other one." It fits the layered architecture mental model — base blueprint provides the app shell, extensions layer in concerns like database, auth, payments, analytics.
+
+### How it differs from v0.1
+
+In v0.1, `with_database=true` adds Supabase clients during `forge new`. The choice is locked at scaffold time and there's exactly one option (Supabase). M9 inverts this.
+
+| Aspect | v0.1 | M9 |
+|--------|------|-----|
+| When chosen | At scaffold time | Any time via `forge add` |
+| Options | One (Supabase) | Multiple (Supabase, libsql, Drizzle+Postgres, etc.) |
+| Switching | Manual rework | `forge add db <new-kind>` |
+| Configuration | One `with_database` boolean | Sub-extensions per database kind |
+
+### Architecture sketch
+
+- The hackathon-app blueprint's `with_database` flag is removed (or kept as deprecated, defaulting to false)
+- A new extension category `db` is added to the manifest's `extensions:` list
+- Each database kind is its own extension: `db-supabase`, `db-libsql`, `db-drizzle-postgres`, etc. Each has its own template (the client files), env vars, and graph fragment.
+- `forge add db supabase` resolves to the `db-supabase` extension, applies its template, merges its graph fragment.
+- Multiple databases on one project are allowed (the extension just declares its files; nothing prevents adding two database extensions).
+
+### Why deferred
+
+Three reasons:
+
+1. We haven't built `forge add` yet (M6). We don't know what the extension system's pain points are until we use it for the simpler additive cases (api-route, page,
