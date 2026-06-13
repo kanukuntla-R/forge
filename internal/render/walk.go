@@ -3,6 +3,8 @@ package render
 import (
 	"fmt"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -13,7 +15,9 @@ import (
 // WriteBlueprint renders all files from bp.FS/template/ into targetPath.
 //
 // Files ending in .tmpl are rendered with ctx and written without the .tmpl
-// suffix. All other files are copied verbatim (binary-safe).
+// suffix. All other files are copied verbatim (binary-safe). Path components
+// (directory names, filenames) are also rendered so blueprints can use
+// variables like {{ .RouteName }} in directory names.
 //
 // Source permission bits from the embedded FS are NOT propagated — Go's
 // //go:embed strips them, so they are meaningless at the target. All
@@ -38,9 +42,46 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 	}
 	defer stager.Discard()
 
+	written, err := walkTemplates(bp.FS, ctx, func(relPath string, content []byte) error {
+		return stager.WriteFile(relPath, content, 0o644)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := stager.Commit(); err != nil {
+		return nil, fmt.Errorf("committing to %q: %w", targetPath, err)
+	}
+	return written, nil
+}
+
+// WriteIntoExisting renders all files from bp.FS/template/ directly into an
+// already-existing targetPath. Unlike WriteBlueprint it bypasses the Stager —
+// writes are not atomic, which is acceptable when appending to a live project.
+func WriteIntoExisting(bp *blueprint.Blueprint, ctx map[string]any, targetPath string) ([]string, error) {
+	const templateRoot = "template"
+
+	if _, err := fs.Stat(bp.FS, templateRoot); err != nil {
+		return nil, nil
+	}
+
+	return walkTemplates(bp.FS, ctx, func(relPath string, content []byte) error {
+		dest := filepath.Join(targetPath, relPath)
+		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+			return fmt.Errorf("creating directories for %q: %w", relPath, err)
+		}
+		return os.WriteFile(dest, content, 0o644)
+	})
+}
+
+// walkTemplates is the shared walker used by WriteBlueprint and WriteIntoExisting.
+// It walks bpFS/template/, renders path segments and .tmpl file contents with ctx,
+// and calls write for each output file.
+func walkTemplates(bpFS fs.FS, ctx map[string]any, write func(relPath string, content []byte) error) ([]string, error) {
+	const templateRoot = "template"
 	var written []string
 
-	walkErr := fs.WalkDir(bp.FS, templateRoot, func(srcPath string, d fs.DirEntry, err error) error {
+	walkErr := fs.WalkDir(bpFS, templateRoot, func(srcPath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -51,7 +92,7 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 		rel := strings.TrimPrefix(srcPath, templateRoot+"/")
 
 		if d.IsDir() {
-			return nil // WriteFile creates parent dirs on demand
+			return nil // write callback creates parent dirs on demand
 		}
 
 		// Render each path segment so blueprints can use variables in
@@ -70,7 +111,7 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 		}
 		destPath := strings.Join(renderedSegs, "/")
 
-		content, err := fs.ReadFile(bp.FS, srcPath)
+		content, err := fs.ReadFile(bpFS, srcPath)
 		if err != nil {
 			return fmt.Errorf("reading %q: %w", srcPath, err)
 		}
@@ -87,8 +128,8 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 			destPath = strings.TrimSuffix(destPath, ".tmpl")
 		}
 
-		if err := stager.WriteFile(destPath, content, 0o644); err != nil {
-			return fmt.Errorf("writing %q: %w", destPath, err)
+		if err := write(destPath, content); err != nil {
+			return err
 		}
 		written = append(written, destPath)
 		return nil
@@ -99,9 +140,5 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 	}
 
 	sort.Strings(written)
-
-	if err := stager.Commit(); err != nil {
-		return nil, fmt.Errorf("committing to %q: %w", targetPath, err)
-	}
 	return written, nil
 }
