@@ -54,13 +54,28 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 			return nil // WriteFile creates parent dirs on demand
 		}
 
+		// Render each path segment so blueprints can use variables in
+		// directory names and filenames (e.g. {{ .RouteName }}/route.ts.tmpl).
+		segments := strings.Split(rel, "/")
+		renderedSegs := make([]string, 0, len(segments))
+		for _, seg := range segments {
+			renderedSeg, err := Render("path:"+seg, seg, ctx)
+			if err != nil {
+				return fmt.Errorf("rendering path segment %q in %q: %w", seg, srcPath, err)
+			}
+			if strings.TrimSpace(renderedSeg) == "" {
+				return nil // conditional evaluated to nothing — skip this file
+			}
+			renderedSegs = append(renderedSegs, renderedSeg)
+		}
+		destPath := strings.Join(renderedSegs, "/")
+
 		content, err := fs.ReadFile(bp.FS, srcPath)
 		if err != nil {
 			return fmt.Errorf("reading %q: %w", srcPath, err)
 		}
 
-		outPath := rel
-		if strings.HasSuffix(rel, ".tmpl") {
+		if strings.HasSuffix(destPath, ".tmpl") {
 			rendered, err := Render(rel, string(content), ctx)
 			if err != nil {
 				return fmt.Errorf("rendering %q: %w", srcPath, err)
@@ -69,13 +84,13 @@ func WriteBlueprint(bp *blueprint.Blueprint, ctx map[string]any, targetPath stri
 				return nil // empty render means this file is excluded by a conditional
 			}
 			content = []byte(rendered)
-			outPath = strings.TrimSuffix(rel, ".tmpl")
+			destPath = strings.TrimSuffix(destPath, ".tmpl")
 		}
 
-		if err := stager.WriteFile(outPath, content, 0o644); err != nil {
-			return fmt.Errorf("writing %q: %w", outPath, err)
+		if err := stager.WriteFile(destPath, content, 0o644); err != nil {
+			return fmt.Errorf("writing %q: %w", destPath, err)
 		}
-		written = append(written, outPath)
+		written = append(written, destPath)
 		return nil
 	})
 

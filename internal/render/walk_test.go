@@ -203,6 +203,139 @@ func TestWriteBlueprintSkipsEmptyRenderedTemplates(t *testing.T) {
 	}
 }
 
+func TestWriteBlueprintTemplatedFilename(t *testing.T) {
+	bp := newSyntheticBlueprint(fstest.MapFS{
+		"template/components/{{ .ComponentName }}.tsx.tmpl": &fstest.MapFile{
+			Data: []byte("export const {{ .ComponentName }} = () => null"),
+			Mode: 0644,
+		},
+	})
+
+	target := filepath.Join(t.TempDir(), "output")
+	files, err := render.WriteBlueprint(bp, map[string]any{"ComponentName": "UserCard"}, target)
+	if err != nil {
+		t.Fatalf("WriteBlueprint() error: %v", err)
+	}
+
+	want := []string{"components/UserCard.tsx"}
+	if !reflect.DeepEqual(files, want) {
+		t.Errorf("files = %v, want %v", files, want)
+	}
+
+	content, err := os.ReadFile(filepath.Join(target, "components", "UserCard.tsx"))
+	if err != nil {
+		t.Fatalf("reading rendered file: %v", err)
+	}
+	if string(content) != "export const UserCard = () => null" {
+		t.Errorf("content = %q", content)
+	}
+}
+
+func TestWriteBlueprintTemplatedDirectory(t *testing.T) {
+	bp := newSyntheticBlueprint(fstest.MapFS{
+		"template/app/api/{{ .RouteName }}/route.ts.tmpl": &fstest.MapFile{
+			Data: []byte("export function GET() {}"),
+			Mode: 0644,
+		},
+	})
+
+	target := filepath.Join(t.TempDir(), "output")
+	files, err := render.WriteBlueprint(bp, map[string]any{"RouteName": "users"}, target)
+	if err != nil {
+		t.Fatalf("WriteBlueprint() error: %v", err)
+	}
+
+	want := []string{"app/api/users/route.ts"}
+	if !reflect.DeepEqual(files, want) {
+		t.Errorf("files = %v, want %v", files, want)
+	}
+
+	if _, err := os.Stat(filepath.Join(target, "app", "api", "users", "route.ts")); err != nil {
+		t.Errorf("expected file at app/api/users/route.ts: %v", err)
+	}
+}
+
+func TestWriteBlueprintConditionalPathSegmentTrue(t *testing.T) {
+	bp := newSyntheticBlueprint(fstest.MapFS{
+		"template/{{ if .WithFeature }}feature{{ end }}/data.ts.tmpl": &fstest.MapFile{
+			Data: []byte("// data"),
+			Mode: 0644,
+		},
+	})
+
+	target := filepath.Join(t.TempDir(), "output")
+	files, err := render.WriteBlueprint(bp, map[string]any{"WithFeature": true}, target)
+	if err != nil {
+		t.Fatalf("WriteBlueprint() error: %v", err)
+	}
+
+	want := []string{"feature/data.ts"}
+	if !reflect.DeepEqual(files, want) {
+		t.Errorf("files = %v, want %v", files, want)
+	}
+}
+
+func TestWriteBlueprintConditionalPathSegmentFalse(t *testing.T) {
+	bp := newSyntheticBlueprint(fstest.MapFS{
+		"template/{{ if .WithFeature }}feature{{ end }}/data.ts.tmpl": &fstest.MapFile{
+			Data: []byte("// data"),
+			Mode: 0644,
+		},
+	})
+
+	target := filepath.Join(t.TempDir(), "output")
+	files, err := render.WriteBlueprint(bp, map[string]any{"WithFeature": false}, target)
+	if err != nil {
+		t.Fatalf("WriteBlueprint() error: %v", err)
+	}
+
+	if len(files) != 0 {
+		t.Errorf("expected no files written, got %v", files)
+	}
+	if _, err := os.Stat(filepath.Join(target, "feature")); !os.IsNotExist(err) {
+		t.Error("feature/ directory should not exist when path segment conditional is false")
+	}
+}
+
+func TestWriteBlueprintMissingKeyInPath(t *testing.T) {
+	bp := newSyntheticBlueprint(fstest.MapFS{
+		"template/app/{{ .UndefinedKey }}/file.ts.tmpl": &fstest.MapFile{
+			Data: []byte("content"),
+			Mode: 0644,
+		},
+	})
+
+	target := filepath.Join(t.TempDir(), "output")
+	_, err := render.WriteBlueprint(bp, map[string]any{}, target)
+	if err == nil {
+		t.Fatal("expected error for missing key in path segment, got nil")
+	}
+}
+
+func TestWriteBlueprintMultipleTemplatedSegments(t *testing.T) {
+	bp := newSyntheticBlueprint(fstest.MapFS{
+		"template/a/{{ .X }}/b/{{ .Y }}/file.ts.tmpl": &fstest.MapFile{
+			Data: []byte("ok"),
+			Mode: 0644,
+		},
+	})
+
+	target := filepath.Join(t.TempDir(), "output")
+	files, err := render.WriteBlueprint(bp, map[string]any{"X": "alpha", "Y": "beta"}, target)
+	if err != nil {
+		t.Fatalf("WriteBlueprint() error: %v", err)
+	}
+
+	want := []string{"a/alpha/b/beta/file.ts"}
+	if !reflect.DeepEqual(files, want) {
+		t.Errorf("files = %v, want %v", files, want)
+	}
+
+	if _, err := os.Stat(filepath.Join(target, "a", "alpha", "b", "beta", "file.ts")); err != nil {
+		t.Errorf("expected file at a/alpha/b/beta/file.ts: %v", err)
+	}
+}
+
 func TestWriteBlueprintHackathonAppRealBlueprint(t *testing.T) {
 	r, err := blueprint.NewRegistry()
 	if err != nil {
