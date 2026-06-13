@@ -210,6 +210,25 @@ variables:
 	}
 }
 
+func TestParseManifestWithoutExtensions(t *testing.T) {
+	input := `
+name: test-blueprint
+kind: app
+version: "0.1.0"
+variables:
+  - name: description
+    prompt: "Project description"
+    type: string
+`
+	m, err := manifest.Parse(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(m.Extensions) != 0 {
+		t.Errorf("Extensions len = %d, want 0 (nil or empty)", len(m.Extensions))
+	}
+}
+
 func TestParseFileNotFound(t *testing.T) {
 	_, err := manifest.ParseFile("testdata/does-not-exist.yaml")
 	if err == nil {
