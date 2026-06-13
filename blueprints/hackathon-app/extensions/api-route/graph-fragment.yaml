@@ -1,0 +1,11 @@
+# Knowledge graph additions when api-route extension is applied.
+# Merged into the project's existing knowledge-graph.json.
+nodes:
+  - id: "app/api/{{ .RouteName }}"
+    type: route
+    label: "{{ .RouteName }} API route"
+    path: "app/api/{{ .RouteName }}/route.ts"
+edges:
+  - from: "app/page"
+    to: "app/api/{{ .RouteName }}"
+    type: calls
