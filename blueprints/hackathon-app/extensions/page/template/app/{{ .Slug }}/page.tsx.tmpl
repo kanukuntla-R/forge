@@ -1,0 +1,10 @@
+export default function {{ .Slug }}Page() {
+  return (
+    <main className="min-h-screen p-8">
+      <h1 className="text-4xl font-bold mb-4">{{ .Slug }}</h1>
+      <p className="text-muted-foreground">
+        Edit <code className="bg-muted px-1 py-0.5 rounded">app/{{ .Slug }}/page.tsx</code> to customize this page.
+      </p>
+    </main>
+  )
+}

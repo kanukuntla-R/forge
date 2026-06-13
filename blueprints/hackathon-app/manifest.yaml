@@ -74,6 +74,7 @@ extensions:
       - name: slug
         prompt: "Page slug (kebab-case)"
         pattern: "^[a-z][a-z0-9-]*$"
+    graph_fragment: extensions/page/graph-fragment.yaml
 
   - name: component
     description: "Add a new React component under components/"
@@ -82,3 +83,4 @@ extensions:
       - name: component_name
         prompt: "Component name (PascalCase)"
         pattern: "^[A-Z][A-Za-z0-9]*$"
+    graph_fragment: extensions/component/graph-fragment.yaml

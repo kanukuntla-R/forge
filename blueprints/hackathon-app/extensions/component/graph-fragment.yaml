@@ -1,0 +1,6 @@
+# Knowledge graph additions when component extension is applied.
+nodes:
+  - id: "components/{{ .ComponentName }}"
+    type: component
+    label: "{{ .ComponentName }}"
+    path: "components/{{ .ComponentName }}.tsx"

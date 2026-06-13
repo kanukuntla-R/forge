@@ -1,0 +1,10 @@
+# Knowledge graph additions when page extension is applied.
+nodes:
+  - id: "app/{{ .Slug }}"
+    type: page
+    label: "{{ .Slug }} page"
+    path: "app/{{ .Slug }}/page.tsx"
+edges:
+  - from: "app/{{ .Slug }}"
+    to: "app/layout"
+    type: wrapped_by
