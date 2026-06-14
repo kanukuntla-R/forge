@@ -8,6 +8,10 @@ package forge
 
 import "embed"
 
+// Version is set at build time via -ldflags. The default value is the
+// local development indicator; release builds inject the real version.
+var Version = "0.1.0-dev"
+
 // all: is required so that template files beginning with '.' or '_'
 // (e.g. .gitignore, .env.example) are included when we add the template tree.
 //

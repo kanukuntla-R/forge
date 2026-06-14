@@ -15,6 +15,7 @@ import (
 	cterm "github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	forge "github.com/kanukuntla-r/forge"
 	"github.com/kanukuntla-r/forge/internal/blueprint"
 	"github.com/kanukuntla-r/forge/internal/graph"
 	"github.com/kanukuntla-r/forge/internal/hooks"
@@ -272,7 +273,7 @@ func runNewFromBlueprint(ctx context.Context, out io.Writer, bp *blueprint.Bluep
 	marker := project.Project{
 		Blueprint:         bp.Manifest.Name,
 		BlueprintVersion:  bp.Manifest.Version,
-		ForgeVersion:      "0.1.0-dev",
+		ForgeVersion:      forge.Version,
 		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
 		Variables:         values,
 		ExtensionsApplied: []project.ExtensionApplication{},
