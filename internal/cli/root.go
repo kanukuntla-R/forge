@@ -3,14 +3,16 @@
 package cli
 
 import (
+	forge "github.com/kanukuntla-r/forge"
 	"github.com/spf13/cobra"
 )
 
 // rootCmd is the top-level "forge" command.
 // All subcommands (new, add, visualize, list, install) attach to this.
 var rootCmd = &cobra.Command{
-	Use:   "forge",
-	Short: "A meta-CLI for scaffolding projects from blueprints.",
+	Use:     "forge",
+	Version: forge.Version,
+	Short:   "A meta-CLI for scaffolding projects from blueprints.",
 	Long: `forge scaffolds new projects from blueprints.
 
 A blueprint is a recipe for a kind of project (a hackathon web app,
