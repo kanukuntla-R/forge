@@ -290,7 +290,7 @@ func runNewFromBlueprint(ctx context.Context, out io.Writer, bp *blueprint.Bluep
 	// Human-readable success lines (suppressed in JSON mode).
 	if !opts.useJSON {
 		fmt.Fprintf(out, "Created %s project at %s\n", bp.Manifest.Name, targetPath)
-		fmt.Fprintf(out, "%d files written\n", len(written))
+		fmt.Fprintf(out, "%d %s written\n", len(written), plural(len(written), "file", "files"))
 		if opts.verbose {
 			for _, f := range written {
 				fmt.Fprintf(out, "  %s\n", f)

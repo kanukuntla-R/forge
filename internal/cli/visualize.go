@@ -25,6 +25,8 @@ To visualize it, install Understand-Anything:
   https://github.com/understand-anything/cli
 `
 
+const stalenessThreshold = 2 * time.Second
+
 // visualizeCmd implements `forge visualize [path]`.
 // It opens the Understand-Anything dashboard for the project at [path] (or cwd).
 var visualizeCmd = &cobra.Command{
@@ -90,7 +92,7 @@ func runVisualize(path string, out io.Writer) error {
 }
 
 // isStale reports whether any source file in projectDir is newer than
-// the knowledge graph at graphPath by more than 1 second.
+// the knowledge graph at graphPath by more than stalenessThreshold.
 // Directories and files whose names start with "." and "node_modules" are skipped.
 func isStale(graphPath, projectDir string) (bool, error) {
 	graphInfo, err := os.Stat(graphPath)
@@ -117,7 +119,7 @@ func isStale(graphPath, projectDir string) (bool, error) {
 		if strings.HasPrefix(name, ".") {
 			return nil
 		}
-		if info.ModTime().After(graphMtime.Add(time.Second)) {
+		if info.ModTime().Sub(graphMtime) > stalenessThreshold {
 			stale = true
 		}
 		return nil

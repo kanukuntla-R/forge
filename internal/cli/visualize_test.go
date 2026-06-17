@@ -157,4 +157,18 @@ func TestIsStale(t *testing.T) {
 			t.Error("isStale() = false, want true when source is newer than graph")
 		}
 	})
+
+	t.Run("within threshold", func(t *testing.T) {
+		// source is 1s newer than graph — under the 2s stalenessThreshold, should not report stale
+		os.Chtimes(graphPath, now.Add(-1500*time.Millisecond), now.Add(-1500*time.Millisecond))
+		os.Chtimes(srcPath, now.Add(-500*time.Millisecond), now.Add(-500*time.Millisecond))
+
+		stale, err := isStale(graphPath, dir)
+		if err != nil {
+			t.Fatalf("isStale() error: %v", err)
+		}
+		if stale {
+			t.Error("isStale() = true, want false for files within staleness threshold")
+		}
+	})
 }

@@ -370,9 +370,13 @@ func runAdd(_ context.Context, out io.Writer, extensionName string, positionalAr
 	}
 	if result.GraphUpdates != nil {
 		gu := result.GraphUpdates
-		fmt.Fprintf(out, "Knowledge graph updated: %d nodes added, %d edges added\n", gu.NodesAdded, gu.EdgesAdded)
+		fmt.Fprintf(out, "Knowledge graph updated: %d %s added, %d %s added\n",
+			gu.NodesAdded, plural(gu.NodesAdded, "node", "nodes"),
+			gu.EdgesAdded, plural(gu.EdgesAdded, "edge", "edges"))
 		if gu.NodesSkipped > 0 || gu.EdgesSkipped > 0 {
-			fmt.Fprintf(out, "  (skipped %d duplicate nodes, %d duplicate edges)\n", gu.NodesSkipped, gu.EdgesSkipped)
+			fmt.Fprintf(out, "  (skipped %d duplicate %s, %d duplicate %s)\n",
+				gu.NodesSkipped, plural(gu.NodesSkipped, "node", "nodes"),
+				gu.EdgesSkipped, plural(gu.EdgesSkipped, "edge", "edges"))
 		}
 	}
 	fmt.Fprintln(out, "Project marker updated")
