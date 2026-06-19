@@ -17,6 +17,8 @@ type ImportInfo struct {
 
 // Imports walks the program root's named children and returns all top-level
 // import_statement nodes as structured ImportInfo values.
+// Re-export statements (export { ... } from "...") are also included because
+// they introduce a dependency on the source module.
 // Dynamic imports (import(...)) are call expressions in the AST — they are
 // not import_statement nodes and are skipped automatically.
 func (t *Tree) Imports() []ImportInfo {
@@ -24,13 +26,57 @@ func (t *Tree) Imports() []ImportInfo {
 	var out []ImportInfo
 	for i := 0; i < int(root.NamedChildCount()); i++ {
 		child := root.NamedChild(i)
-		if child.Type() == "import_statement" {
+		switch child.Type() {
+		case "import_statement":
 			if imp, ok := extractImport(child, t.source); ok {
+				out = append(out, imp)
+			}
+		case "export_statement":
+			if imp, ok := extractReexportImport(child, t.source); ok {
 				out = append(out, imp)
 			}
 		}
 	}
 	return out
+}
+
+// extractReexportImport builds an ImportInfo for export_statement nodes that
+// have a source string (e.g. export { foo } from "./x", export * from "./x").
+// Returns false when the export has no source (not a re-export).
+func extractReexportImport(node *sitter.Node, src []byte) (ImportInfo, bool) {
+	source := exportSource(node, src) // defined in exports.go, same package
+	if source == "" {
+		return ImportInfo{}, false
+	}
+
+	var names []string
+	for i := 0; i < int(node.NamedChildCount()); i++ {
+		child := node.NamedChild(i)
+		switch child.Type() {
+		case "export_clause":
+			for j := 0; j < int(child.NamedChildCount()); j++ {
+				spec := child.NamedChild(j)
+				if spec.Type() == "export_specifier" {
+					// Import side: record the source name (first identifier).
+					if name := specifierName(spec, src); name != "" {
+						names = append(names, name)
+					}
+				}
+			}
+		case "namespace_export":
+			names = []string{"*"}
+		}
+	}
+	if names == nil {
+		names = []string{"*"} // wildcard re-export: export * from "./x"
+	}
+
+	return ImportInfo{
+		Source:   source,
+		Names:    names,
+		External: isExternal(source),
+		Line:     int(node.StartPoint().Row) + 1,
+	}, true
 }
 
 // extractImport builds an ImportInfo from a single import_statement node.

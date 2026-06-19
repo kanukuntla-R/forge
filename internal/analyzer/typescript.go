@@ -48,7 +48,18 @@ func (a *typescriptAdapter) Analyze(path string, content []byte) (*FileAnalysis,
 		}
 	}
 
+	rawExports := tree.Exports()
+	exports := make([]Export, len(rawExports))
+	for i, exp := range rawExports {
+		exports[i] = Export{
+			Name: exp.Name,
+			Type: exp.Type,
+			Line: exp.Line,
+		}
+	}
+
 	return &FileAnalysis{
 		Imports: imports,
+		Exports: exports,
 	}, nil
 }
