@@ -31,3 +31,6 @@
 /verify-*/
 /*-scratch/
 /*-test/
+
+# Analyzer runtime output (forge analyze writes here)
+/.forge/
