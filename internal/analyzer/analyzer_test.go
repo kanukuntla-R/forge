@@ -196,6 +196,47 @@ func TestWalkUsesBasicForOtherFiles(t *testing.T) {
 	}
 }
 
+func TestWalkExtractsTypescriptImports(t *testing.T) {
+	dir := t.TempDir()
+	content := `import { foo } from "./utils"
+import React from "react"
+export function bar() {}`
+	writeFile(t, dir, "app.ts", content)
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if got := len(result.Analysis.Files); got != 1 {
+		t.Fatalf("want 1 file, got %d", got)
+	}
+	f := result.Analysis.Files[0]
+	if f.Language != "typescript" {
+		t.Fatalf("want language=typescript, got %q", f.Language)
+	}
+	if got := len(f.Imports); got != 2 {
+		t.Fatalf("want 2 imports, got %d", got)
+	}
+	// First import: named, local
+	if f.Imports[0].Source != "./utils" {
+		t.Errorf("import 0 source: want %q, got %q", "./utils", f.Imports[0].Source)
+	}
+	if f.Imports[0].External {
+		t.Errorf("import 0: want external=false")
+	}
+	// Second import: default, external
+	if f.Imports[1].Source != "react" {
+		t.Errorf("import 1 source: want %q, got %q", "react", f.Imports[1].Source)
+	}
+	if !f.Imports[1].External {
+		t.Errorf("import 1: want external=true")
+	}
+	if len(f.Imports[1].Names) != 1 || f.Imports[1].Names[0] != "default" {
+		t.Errorf("import 1 names: want [default], got %v", f.Imports[1].Names)
+	}
+}
+
 func TestProjectInfoDerivedFromRootPath(t *testing.T) {
 	parent := t.TempDir()
 	dir := filepath.Join(parent, "my-test-project")

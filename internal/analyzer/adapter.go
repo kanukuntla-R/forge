@@ -21,8 +21,9 @@ type FileAnalysis struct {
 type Import struct {
 	Source   string   `json:"source"`
 	Resolved string   `json:"resolved,omitempty"`
-	Names    []string `json:"names,omitempty"`
+	Names    []string `json:"names"`            // no omitempty: [] is meaningful for side-effect imports
 	External bool     `json:"external,omitempty"`
+	Line     int      `json:"line,omitempty"`
 }
 
 // Export represents a module export.

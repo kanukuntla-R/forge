@@ -31,10 +31,24 @@ func (a *typescriptAdapter) Detect(path string, _ []byte) bool {
 }
 
 func (a *typescriptAdapter) Analyze(path string, content []byte) (*FileAnalysis, error) {
-	_, err := a.parser.Parse(content)
+	tree, err := a.parser.Parse(content)
 	if err != nil {
 		return nil, fmt.Errorf("parsing %q: %w", path, err)
 	}
-	// M8.2a: parse proves tree-sitter works; extraction (imports/exports/declarations) in M8.2b-d.
-	return &FileAnalysis{}, nil
+
+	rawImports := tree.Imports()
+	imports := make([]Import, len(rawImports))
+	for i, imp := range rawImports {
+		imports[i] = Import{
+			Source:   imp.Source,
+			Names:    imp.Names,
+			External: imp.External,
+			Line:     imp.Line,
+			// Resolved stays empty until M8.2e.
+		}
+	}
+
+	return &FileAnalysis{
+		Imports: imports,
+	}, nil
 }
