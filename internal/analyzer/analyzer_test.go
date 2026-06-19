@@ -26,8 +26,8 @@ func TestWalkSimpleDirectory(t *testing.T) {
 		t.Errorf("want 3 files, got %d: %v", got, filePaths(result.Analysis.Files))
 	}
 	for _, f := range result.Analysis.Files {
-		if f.Language != "basic" {
-			t.Errorf("file %s: want language=basic, got %s", f.Path, f.Language)
+		if f.Language == "" {
+			t.Errorf("file %s: want non-empty language, got empty string", f.Path)
 		}
 		if f.SizeBytes == 0 {
 			t.Errorf("file %s: want non-zero size", f.Path)
@@ -109,18 +109,90 @@ func TestWalkContinuesOnReadError(t *testing.T) {
 
 func TestRegistryDispatch(t *testing.T) {
 	reg := analyzer.NewRegistry()
-	reg.Register(&mockAdapter{ext: ".ts"})
+	// Use an extension that no built-in adapter handles, so the mock can win.
+	reg.Register(&mockAdapter{ext: ".forge_test"})
 
-	// .ts file → mock adapter
-	a := reg.Dispatch("src/app.ts", nil)
+	// .forge_test file → mock adapter (typescript adapter passes on it)
+	a := reg.Dispatch("src/test.forge_test", nil)
 	if a.Name() != "mock" {
-		t.Errorf("want mock adapter for .ts file, got %q", a.Name())
+		t.Errorf("want mock adapter for .forge_test file, got %q", a.Name())
 	}
 
-	// .txt file → basic fallback
+	// .txt file → basic fallback (neither typescript nor mock handles it)
 	a = reg.Dispatch("notes.txt", nil)
 	if a.Name() != "basic" {
 		t.Errorf("want basic adapter for .txt file, got %q", a.Name())
+	}
+}
+
+func TestWalkUsesTypescriptAdapter(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.ts", "export function foo() {}")
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if got := len(result.Analysis.Files); got != 1 {
+		t.Fatalf("want 1 file, got %d", got)
+	}
+	if got := result.Analysis.Files[0].Language; got != "typescript" {
+		t.Errorf("app.ts: want language=typescript, got %q", got)
+	}
+}
+
+func TestWalkUsesTypescriptForTsx(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.tsx", `export default function App() { return <div>hi</div>; }`)
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if got := len(result.Analysis.Files); got != 1 {
+		t.Fatalf("want 1 file, got %d", got)
+	}
+	if got := result.Analysis.Files[0].Language; got != "typescript" {
+		t.Errorf("app.tsx: want language=typescript, got %q", got)
+	}
+}
+
+func TestWalkUsesTypescriptForJsAndJsx(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "util.js", "module.exports = {}")
+	writeFile(t, dir, "widget.jsx", "export default () => <span/>;")
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if got := len(result.Analysis.Files); got != 2 {
+		t.Fatalf("want 2 files, got %d", got)
+	}
+	for _, f := range result.Analysis.Files {
+		if f.Language != "typescript" {
+			t.Errorf("%s: want language=typescript, got %q", f.Path, f.Language)
+		}
+	}
+}
+
+func TestWalkUsesBasicForOtherFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "README.md", "# README")
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if got := len(result.Analysis.Files); got != 1 {
+		t.Fatalf("want 1 file, got %d", got)
+	}
+	if got := result.Analysis.Files[0].Language; got != "basic" {
+		t.Errorf("README.md: want language=basic, got %q", got)
 	}
 }
 

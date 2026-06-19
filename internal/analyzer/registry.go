@@ -6,9 +6,12 @@ type Registry struct {
 	basic    LanguageAdapter // fallback when no registered adapter matches
 }
 
-// NewRegistry returns a Registry with the basic fallback adapter pre-installed.
+// NewRegistry returns a Registry with the TypeScript adapter registered and the
+// basic fallback adapter pre-installed.
 func NewRegistry() *Registry {
-	return &Registry{basic: basicAdapter{}}
+	r := &Registry{basic: basicAdapter{}}
+	r.Register(newTypescriptAdapter())
+	return r
 }
 
 // Register adds an adapter. Adapters are checked in registration order;
