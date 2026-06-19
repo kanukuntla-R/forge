@@ -237,6 +237,40 @@ export function bar() {}`
 	}
 }
 
+func TestWalkExtractsTypescriptDeclarations(t *testing.T) {
+	dir := t.TempDir()
+	content := `function helper() {}
+export function Header() { return null }
+class Manager {}`
+	writeFile(t, dir, "app.ts", content)
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if got := len(result.Analysis.Files); got != 1 {
+		t.Fatalf("want 1 file, got %d", got)
+	}
+	f := result.Analysis.Files[0]
+	if got := len(f.Declarations); got != 3 {
+		t.Fatalf("want 3 declarations, got %d: %v", got, f.Declarations)
+	}
+	cases := []struct{ name, typ string }{
+		{"helper", "function"},
+		{"Header", "component"},
+		{"Manager", "class"},
+	}
+	for i, c := range cases {
+		if f.Declarations[i].Name != c.name {
+			t.Errorf("decl %d name: want %q, got %q", i, c.name, f.Declarations[i].Name)
+		}
+		if f.Declarations[i].Type != c.typ {
+			t.Errorf("decl %d type: want %q, got %q", i, c.typ, f.Declarations[i].Type)
+		}
+	}
+}
+
 func TestProjectInfoDerivedFromRootPath(t *testing.T) {
 	parent := t.TempDir()
 	dir := filepath.Join(parent, "my-test-project")

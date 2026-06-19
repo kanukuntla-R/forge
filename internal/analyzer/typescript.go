@@ -58,8 +58,19 @@ func (a *typescriptAdapter) Analyze(path string, content []byte) (*FileAnalysis,
 		}
 	}
 
+	rawDecls := tree.Declarations()
+	decls := make([]Declaration, len(rawDecls))
+	for i, d := range rawDecls {
+		decls[i] = Declaration{
+			Name: d.Name,
+			Type: d.Type,
+			Line: d.Line,
+		}
+	}
+
 	return &FileAnalysis{
-		Imports: imports,
-		Exports: exports,
+		Imports:      imports,
+		Exports:      exports,
+		Declarations: decls,
 	}, nil
 }
