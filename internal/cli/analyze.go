@@ -55,6 +55,10 @@ func runAnalyze(out, errOut io.Writer, path string, asJSON bool) error {
 		fmt.Fprintf(errOut, "forge: warning: %v\n", e)
 	}
 
+	// Resolve local import sources to their actual file paths using tsconfig aliases.
+	resolver, _ := analyzer.NewResolver(absPath, result.Analysis)
+	resolver.Resolve(result.Analysis)
+
 	data, err := json.MarshalIndent(result.Analysis, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling analysis: %w", err)

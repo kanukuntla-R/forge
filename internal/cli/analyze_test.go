@@ -60,6 +60,55 @@ func TestRunAnalyzeJSONFlag(t *testing.T) {
 	}
 }
 
+func TestRunAnalyzeResolvesImports(t *testing.T) {
+	dir := t.TempDir()
+	// A minimal project: page imports a local util via alias and a relative path.
+	writeAnalyzeFile(t, dir, "tsconfig.json", `{"compilerOptions":{"paths":{"@/*":["./*"]}}}`)
+	writeAnalyzeFile(t, dir, "lib/utils.ts", `export function cn() {}`)
+	writeAnalyzeFile(t, dir, "app/page.tsx",
+		`import { cn } from "@/lib/utils"
+import "./styles.css"`)
+	writeAnalyzeFile(t, dir, "app/styles.css", `body {}`)
+
+	var out, errOut bytes.Buffer
+	if err := runAnalyze(&out, &errOut, dir, true); err != nil {
+		t.Fatalf("runAnalyze: %v", err)
+	}
+
+	var analysis analyzer.ProjectAnalysis
+	if err := json.Unmarshal(out.Bytes(), &analysis); err != nil {
+		t.Fatalf("stdout not valid JSON: %v", err)
+	}
+
+	// Find app/page.tsx
+	var page *analyzer.FileInfo
+	for i := range analysis.Files {
+		if analysis.Files[i].Path == "app/page.tsx" {
+			page = &analysis.Files[i]
+			break
+		}
+	}
+	if page == nil {
+		t.Fatal("app/page.tsx not found in analysis")
+	}
+	if len(page.Imports) != 2 {
+		t.Fatalf("want 2 imports in page.tsx, got %d", len(page.Imports))
+	}
+
+	// @/lib/utils should resolve to lib/utils.ts
+	if page.Imports[0].Source != "@/lib/utils" {
+		t.Errorf("import 0 source: want @/lib/utils, got %q", page.Imports[0].Source)
+	}
+	if page.Imports[0].Resolved != "lib/utils.ts" {
+		t.Errorf("import 0 resolved: want lib/utils.ts, got %q", page.Imports[0].Resolved)
+	}
+
+	// ./styles.css should resolve to app/styles.css
+	if page.Imports[1].Resolved != "app/styles.css" {
+		t.Errorf("import 1 resolved: want app/styles.css, got %q", page.Imports[1].Resolved)
+	}
+}
+
 func writeAnalyzeFile(t *testing.T, dir, rel, content string) {
 	t.Helper()
 	path := filepath.Join(dir, filepath.FromSlash(rel))
