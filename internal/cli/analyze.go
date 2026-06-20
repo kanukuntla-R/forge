@@ -59,6 +59,15 @@ func runAnalyze(out, errOut io.Writer, path string, asJSON bool) error {
 	resolver, _ := analyzer.NewResolver(absPath, result.Analysis)
 	resolver.Resolve(result.Analysis)
 
+	// Framework detection: enrich analysis with framework-specific structure.
+	for _, d := range []analyzer.FrameworkDetector{analyzer.NewNextjsDetector()} {
+		if d.Detect(absPath) {
+			if err := d.EnrichAnalysis(result.Analysis); err != nil {
+				fmt.Fprintf(errOut, "forge: warning: framework %s: %v\n", d.Name(), err)
+			}
+		}
+	}
+
 	data, err := json.MarshalIndent(result.Analysis, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling analysis: %w", err)
