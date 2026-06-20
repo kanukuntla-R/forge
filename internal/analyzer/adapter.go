@@ -43,6 +43,7 @@ type Declaration struct {
 // Call represents a function/API call extracted from the source.
 type Call struct {
 	Target     string `json:"target"`
+	Method     string `json:"method,omitempty"`
 	Line       int    `json:"line"`
 	Kind       string `json:"kind"`
 	Confidence string `json:"confidence"`

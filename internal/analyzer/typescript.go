@@ -68,9 +68,22 @@ func (a *typescriptAdapter) Analyze(path string, content []byte) (*FileAnalysis,
 		}
 	}
 
+	rawCalls := tree.APICalls()
+	calls := make([]Call, len(rawCalls))
+	for i, c := range rawCalls {
+		calls[i] = Call{
+			Target:     c.Target,
+			Method:     c.Method,
+			Line:       c.Line,
+			Kind:       c.Kind,
+			Confidence: c.Confidence,
+		}
+	}
+
 	return &FileAnalysis{
 		Imports:      imports,
 		Exports:      exports,
 		Declarations: decls,
+		Calls:        calls,
 	}, nil
 }

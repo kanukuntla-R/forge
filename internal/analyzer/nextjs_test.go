@@ -252,6 +252,95 @@ func TestNextjsProjectFrameworksUpdated(t *testing.T) {
 	}
 }
 
+// ── API call matching tests ────────────────────────────────────────────────────
+
+func routeFile(path string, exports ...string) analyzer.FileInfo {
+	f := analyzer.FileInfo{Path: path, Language: "typescript"}
+	for _, exp := range exports {
+		f.Exports = append(f.Exports, analyzer.Export{Name: exp})
+	}
+	return f
+}
+
+func pageWithCalls(path string, calls ...analyzer.Call) analyzer.FileInfo {
+	return analyzer.FileInfo{Path: path, Language: "typescript", Calls: calls}
+}
+
+func apiCall(target, method, kind, conf string) analyzer.Call {
+	return analyzer.Call{Target: target, Method: method, Kind: kind, Confidence: conf}
+}
+
+func TestNextjsAPICallExactMatch(t *testing.T) {
+	info := enrichNextjs(t, []analyzer.FileInfo{
+		routeFile("app/api/users/route.ts", "GET", "POST"),
+		pageWithCalls("app/page.tsx", apiCall("/api/users", "GET", "fetch", "high")),
+	})
+	if len(info.APICalls) != 1 {
+		t.Fatalf("want 1 api_call, got %d", len(info.APICalls))
+	}
+	c := info.APICalls[0]
+	if c.FromFile != "app/page.tsx" {
+		t.Errorf("from_file: want app/page.tsx, got %q", c.FromFile)
+	}
+	if c.ToRoute != "/api/users" {
+		t.Errorf("to_route: want /api/users, got %q", c.ToRoute)
+	}
+	if c.Confidence != "high" {
+		t.Errorf("confidence: want high, got %q", c.Confidence)
+	}
+}
+
+func TestNextjsAPICallPatternMatch(t *testing.T) {
+	info := enrichNextjs(t, []analyzer.FileInfo{
+		routeFile("app/api/products/[id]/route.ts", "GET"),
+		pageWithCalls("app/page.tsx", apiCall("/api/products/123", "GET", "fetch", "high")),
+	})
+	if len(info.APICalls) != 1 {
+		t.Fatalf("want 1 api_call, got %d", len(info.APICalls))
+	}
+	c := info.APICalls[0]
+	if c.ToRoute != "/api/products/:id" {
+		t.Errorf("to_route: want /api/products/:id, got %q", c.ToRoute)
+	}
+	if c.Confidence != "medium" {
+		t.Errorf("confidence: want medium (pattern), got %q", c.Confidence)
+	}
+}
+
+func TestNextjsAPICallNoMatch(t *testing.T) {
+	info := enrichNextjs(t, []analyzer.FileInfo{
+		routeFile("app/api/users/route.ts", "GET"),
+		pageWithCalls("app/page.tsx", apiCall("/api/missing", "GET", "fetch", "high")),
+	})
+	if len(info.APICalls) != 1 {
+		t.Fatalf("want 1 api_call, got %d", len(info.APICalls))
+	}
+	c := info.APICalls[0]
+	if c.ToRoute != "" {
+		t.Errorf("to_route: want empty for unmatched call, got %q", c.ToRoute)
+	}
+	if c.Confidence != "medium" {
+		t.Errorf("confidence: want medium (known kind, no match), got %q", c.Confidence)
+	}
+}
+
+func TestNextjsAPICallHeuristicMatch(t *testing.T) {
+	info := enrichNextjs(t, []analyzer.FileInfo{
+		routeFile("app/api/users/route.ts", "GET"),
+		pageWithCalls("app/page.tsx", apiCall("/api/users", "GET", "heuristic", "medium")),
+	})
+	if len(info.APICalls) != 1 {
+		t.Fatalf("want 1 api_call, got %d", len(info.APICalls))
+	}
+	c := info.APICalls[0]
+	if c.ToRoute != "/api/users" {
+		t.Errorf("to_route: want /api/users, got %q", c.ToRoute)
+	}
+	if c.Confidence != "medium" {
+		t.Errorf("confidence: want medium (heuristic + match), got %q", c.Confidence)
+	}
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 func sliceContains(s []string, v string) bool {

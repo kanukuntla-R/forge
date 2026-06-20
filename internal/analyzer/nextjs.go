@@ -13,6 +13,16 @@ type NextjsInfo struct {
 	Routes     []NextjsRoute     `json:"routes"`
 	Layouts    []NextjsLayout    `json:"layouts"`
 	Components []NextjsComponent `json:"components"`
+	APICalls   []NextjsAPICall   `json:"api_calls"`
+}
+
+// NextjsAPICall represents a matched frontend-to-backend HTTP call.
+type NextjsAPICall struct {
+	FromFile   string `json:"from_file"`
+	ToRoute    string `json:"to_route,omitempty"` // empty when no matching route found
+	Method     string `json:"method"`
+	Line       int    `json:"line"`
+	Confidence string `json:"confidence"`
 }
 
 // NextjsPage represents a page in the App Router (app/**/page.{tsx,ts,jsx,js}).
@@ -73,6 +83,7 @@ func (d *nextjsDetector) EnrichAnalysis(analysis *ProjectAnalysis) error {
 		Routes:     []NextjsRoute{},
 		Layouts:    []NextjsLayout{},
 		Components: []NextjsComponent{},
+		APICalls:   []NextjsAPICall{},
 	}
 
 	for _, file := range analysis.Files {
@@ -107,12 +118,89 @@ func (d *nextjsDetector) EnrichAnalysis(analysis *ProjectAnalysis) error {
 
 	info.Components = computeComponentUsage(analysis.Files, info.Components)
 
+	// API call matching: correlate detected HTTP calls against known routes.
+	for _, file := range analysis.Files {
+		for _, call := range file.Calls {
+			matchedRoute, matchConf := matchCallToRoute(call.Target, info.Routes)
+			info.APICalls = append(info.APICalls, NextjsAPICall{
+				FromFile:   file.Path,
+				ToRoute:    matchedRoute,
+				Method:     call.Method,
+				Line:       call.Line,
+				Confidence: combinedConfidence(call.Kind, matchConf),
+			})
+		}
+	}
+
 	if analysis.Frameworks == nil {
 		analysis.Frameworks = make(map[string]any)
 	}
 	analysis.Frameworks["nextjs"] = info
 	analysis.Project.Frameworks = append(analysis.Project.Frameworks, "nextjs")
 	return nil
+}
+
+// ── Route matching ──────────────────────────────────────────────────────────
+
+// matchCallToRoute attempts to match a URL target against known routes.
+// Returns the matched route path and a match confidence ("exact", "pattern", or "").
+func matchCallToRoute(target string, routes []NextjsRoute) (routePath, matchConf string) {
+	// 1. Exact match.
+	for _, r := range routes {
+		if r.Path == target {
+			return r.Path, "exact"
+		}
+	}
+	// 2. Pattern match: "/api/products/123" matches "/api/products/:id".
+	for _, r := range routes {
+		if routeMatchesTarget(r.Path, target) {
+			return r.Path, "pattern"
+		}
+	}
+	return "", ""
+}
+
+// routeMatchesTarget returns true when target fits the route pattern.
+// Pattern segments starting with ":" match any non-empty target segment.
+func routeMatchesTarget(pattern, target string) bool {
+	pSegs := strings.Split(strings.TrimPrefix(pattern, "/"), "/")
+	tSegs := strings.Split(strings.TrimPrefix(target, "/"), "/")
+	if len(pSegs) != len(tSegs) {
+		return false
+	}
+	for i, p := range pSegs {
+		if strings.HasPrefix(p, ":") {
+			if tSegs[i] == "" {
+				return false
+			}
+			continue
+		}
+		// Param placeholder in target (from interpolated template) also matches.
+		if strings.HasPrefix(tSegs[i], ":") {
+			continue
+		}
+		if p != tSegs[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// combinedConfidence merges the call's client kind and the route match confidence
+// into a single final confidence level for api_calls entries.
+func combinedConfidence(callKind, matchConf string) string {
+	switch {
+	case callKind != "heuristic" && matchConf == "exact":
+		return "high"
+	case callKind != "heuristic" && matchConf == "pattern":
+		return "medium"
+	case callKind != "heuristic" && matchConf == "":
+		return "medium"
+	case callKind == "heuristic" && matchConf != "":
+		return "medium"
+	default:
+		return "low"
+	}
 }
 
 // ── Classification helpers ──────────────────────────────────────────────────
