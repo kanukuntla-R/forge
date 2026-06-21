@@ -1,138 +1,89 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
+	"os/signal"
 	"path/filepath"
-	"strings"
-	"time"
+	"syscall"
 
 	"github.com/spf13/cobra"
+
+	"github.com/kanukuntla-r/forge/internal/dashboard"
 )
 
-const staleHint = `Note: your knowledge graph was created at scaffold time and may be stale
-relative to your current code. To refresh it, you can ask Claude Code or
-another AI assistant to update .understand-anything/knowledge-graph.json
-based on your current code. Full automated refresh is planned for M8.`
-
-const fallbackFmt = `Understand-Anything not found on PATH.
-
-Your knowledge graph is at: %s
-
-To visualize it, install Understand-Anything:
-  https://github.com/understand-anything/cli
-`
-
-const stalenessThreshold = 2 * time.Second
-
-// visualizeCmd implements `forge visualize [path]`.
-// It opens the Understand-Anything dashboard for the project at [path] (or cwd).
 var visualizeCmd = &cobra.Command{
 	Use:   "visualize [path]",
-	Short: "Open the Understand-Anything dashboard for a forge project",
-	Long: `Open the Understand-Anything dashboard for the project at [path] (or cwd).
+	Short: "Open the forge dashboard for an analyzed project",
+	Long: `Analyzes the project (if needed) and opens an interactive dashboard in your browser.
 
-Requires .understand-anything/knowledge-graph.json to exist. forge writes
-that file at scaffold time, so any forge-created project is visualizable.`,
+If .forge/analysis.json is missing, forge analyze runs automatically first.
+Use --refresh to force re-analysis even when analysis.json already exists.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		path := ""
+		path := "."
 		if len(args) > 0 {
 			path = args[0]
 		}
-		return runVisualize(path, cmd.OutOrStdout())
+		refresh, _ := cmd.Flags().GetBool("refresh")
+		return runVisualize(cmd.OutOrStdout(), cmd.ErrOrStderr(), path, refresh)
 	},
 }
 
 func init() {
+	visualizeCmd.Flags().Bool("refresh", false, "Force re-analysis even if analysis.json exists")
 	rootCmd.AddCommand(visualizeCmd)
 }
 
-func runVisualize(path string, out io.Writer) error {
-	if path == "" {
-		var err error
-		path, err = os.Getwd()
-		if err != nil {
-			return fmt.Errorf("getting current directory: %w", err)
+func runVisualize(out, errOut io.Writer, path string, refresh bool) error {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("resolving path: %w", err)
+	}
+
+	if _, err := os.Stat(absPath); err != nil {
+		return fmt.Errorf("path does not exist: %w", err)
+	}
+
+	analysisPath := filepath.Join(absPath, ".forge", "analysis.json")
+
+	_, statErr := os.Stat(analysisPath)
+	if refresh || os.IsNotExist(statErr) {
+		fmt.Fprintf(out, "Analyzing %s...\n", filepath.Base(absPath))
+		if err := runAnalyze(out, errOut, absPath, false); err != nil {
+			return fmt.Errorf("analyzing project: %w", err)
 		}
 	}
 
-	graphPath := filepath.Join(path, ".understand-anything", "knowledge-graph.json")
-	if _, err := os.Stat(graphPath); err != nil {
-		return fmt.Errorf("knowledge graph not found at %q; run forge new to scaffold a project with a knowledge graph", graphPath)
-	}
-
-	stale, err := isStale(graphPath, path)
+	srv, err := dashboard.NewServer(analysisPath)
 	if err != nil {
-		return fmt.Errorf("checking graph staleness: %w", err)
-	}
-	if stale {
-		fmt.Fprintln(out, staleHint)
+		return fmt.Errorf("starting dashboard: %w", err)
 	}
 
-	if viz := findVisualizer(); viz != "" {
-		cmd := exec.Command(viz)
-		cmd.Dir = path
-		cmd.Stdout = out
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("understand-anything: %w", err)
-		}
-		return nil
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		fmt.Fprintln(errOut, "\nShutting down...")
+		cancel()
+	}()
+
+	fmt.Fprintf(out, "Dashboard running at %s\n", srv.URL())
+	fmt.Fprintln(out, "Press Ctrl+C to stop.")
+
+	if err := dashboard.OpenBrowser(srv.URL()); err != nil {
+		fmt.Fprintf(errOut, "forge: could not open browser: %v\n", err)
+		fmt.Fprintf(errOut, "Open manually: %s\n", srv.URL())
 	}
 
-	absGraph, err := filepath.Abs(graphPath)
-	if err != nil {
-		absGraph = graphPath
+	if err := srv.Start(ctx); err != nil {
+		return err
 	}
-	fmt.Fprintf(out, fallbackFmt, absGraph)
+	fmt.Fprintln(out, "Dashboard stopped.")
 	return nil
-}
-
-// isStale reports whether any source file in projectDir is newer than
-// the knowledge graph at graphPath by more than stalenessThreshold.
-// Directories and files whose names start with "." and "node_modules" are skipped.
-func isStale(graphPath, projectDir string) (bool, error) {
-	graphInfo, err := os.Stat(graphPath)
-	if err != nil {
-		return false, err
-	}
-	graphMtime := graphInfo.ModTime()
-
-	stale := false
-	err = filepath.Walk(projectDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if path == projectDir {
-			return nil
-		}
-		name := info.Name()
-		if info.IsDir() {
-			if strings.HasPrefix(name, ".") || name == "node_modules" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if strings.HasPrefix(name, ".") {
-			return nil
-		}
-		if info.ModTime().Sub(graphMtime) > stalenessThreshold {
-			stale = true
-		}
-		return nil
-	})
-	return stale, err
-}
-
-// findVisualizer returns the path to the understand-anything binary,
-// or "" if it is not found on PATH.
-func findVisualizer() string {
-	p, err := exec.LookPath("understand-anything")
-	if err != nil {
-		return ""
-	}
-	return p
 }
