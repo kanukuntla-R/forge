@@ -46,6 +46,94 @@ function getCallTarget(apiCall, files) {
     return call ? call.target : '';
 }
 
+function buildGraphData(analysis) {
+    const nextjs = analysis.frameworks && analysis.frameworks.nextjs;
+    if (!nextjs) return { nodes: [], edges: [] };
+
+    const nodes   = [];
+    const edges   = [];
+    const nodeIds = new Set();
+
+    for (const page of (nextjs.pages || [])) {
+        const id = page.file;
+        if (!nodeIds.has(id)) {
+            nodes.push({ data: { id, label: page.path, type: 'page', file: page.file } });
+            nodeIds.add(id);
+        }
+    }
+
+    for (const route of (nextjs.routes || [])) {
+        const id = route.file;
+        if (!nodeIds.has(id)) {
+            nodes.push({ data: { id, label: route.path, type: 'route', file: route.file, methods: route.methods } });
+            nodeIds.add(id);
+        }
+    }
+
+    for (const comp of (nextjs.components || [])) {
+        const id = comp.file;
+        if (!nodeIds.has(id)) {
+            nodes.push({ data: { id, label: comp.name, type: 'component', file: comp.file } });
+            nodeIds.add(id);
+        }
+    }
+
+    // API call edges — only emit if both endpoints are graph nodes
+    for (let i = 0; i < (nextjs.api_calls || []).length; i++) {
+        const call = nextjs.api_calls[i];
+        if (!call.to_route) continue;
+        const targetRoute = (nextjs.routes || []).find(r => r.path === call.to_route);
+        if (!targetRoute) continue;
+        if (!nodeIds.has(call.from_file) || !nodeIds.has(targetRoute.file)) continue;
+        edges.push({
+            data: {
+                id: 'api-' + i,
+                source: call.from_file,
+                target: targetRoute.file,
+                type: 'api_call',
+                method: call.method || 'GET',
+                confidence: call.confidence,
+            }
+        });
+    }
+
+    // Import edges — only between known graph nodes
+    let importIdx = 0;
+    for (const file of (analysis.files || [])) {
+        if (!file.imports) continue;
+        for (const imp of file.imports) {
+            if (!imp.resolved || imp.external) continue;
+            if (!nodeIds.has(file.path) || !nodeIds.has(imp.resolved)) continue;
+            edges.push({
+                data: {
+                    id: 'import-' + (importIdx++),
+                    source: file.path,
+                    target: imp.resolved,
+                    type: 'import',
+                }
+            });
+        }
+    }
+
+    // Component usage edges
+    let usageIdx = 0;
+    for (const comp of (nextjs.components || [])) {
+        for (const user of (comp.used_by || [])) {
+            if (!nodeIds.has(user) || !nodeIds.has(comp.file)) continue;
+            edges.push({
+                data: {
+                    id: 'usage-' + (usageIdx++),
+                    source: user,
+                    target: comp.file,
+                    type: 'usage',
+                }
+            });
+        }
+    }
+
+    return { nodes, edges };
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const CONFIDENCE_CLASS = {
@@ -61,6 +149,106 @@ const METHOD_CLASS = {
     PATCH:   'bg-yellow-100 text-yellow-700',
     DELETE:  'bg-red-100 text-red-700',
 };
+
+const cytoscapeStyle = [
+    {
+        selector: 'node[type="page"]',
+        style: {
+            'shape':        'round-rectangle',
+            'background-color': '#3b82f6',
+            'label':        'data(label)',
+            'color':        '#fff',
+            'text-valign':  'center',
+            'text-halign':  'center',
+            'font-size':    '11px',
+            'font-family':  'monospace',
+            'width':        'label',
+            'height':       28,
+            'padding':      '8px',
+            'border-width': 0,
+        }
+    },
+    {
+        selector: 'node[type="route"]',
+        style: {
+            'shape':        'hexagon',
+            'background-color': '#10b981',
+            'label':        'data(label)',
+            'color':        '#fff',
+            'text-valign':  'center',
+            'text-halign':  'center',
+            'font-size':    '10px',
+            'font-family':  'monospace',
+            'width':        80,
+            'height':       50,
+            'border-width': 0,
+        }
+    },
+    {
+        selector: 'node[type="component"]',
+        style: {
+            'shape':        'ellipse',
+            'background-color': '#8b5cf6',
+            'label':        'data(label)',
+            'color':        '#fff',
+            'text-valign':  'center',
+            'text-halign':  'center',
+            'font-size':    '10px',
+            'font-family':  'monospace',
+            'width':        60,
+            'height':       40,
+            'border-width': 0,
+        }
+    },
+    {
+        selector: 'edge[type="api_call"]',
+        style: {
+            'width':                  2,
+            'line-color':             '#3b82f6',
+            'target-arrow-color':     '#3b82f6',
+            'target-arrow-shape':     'triangle',
+            'curve-style':            'bezier',
+            'label':                  'data(method)',
+            'font-size':              '9px',
+            'color':                  '#3b82f6',
+            'text-background-color':  '#fff',
+            'text-background-opacity': 1,
+            'text-background-padding': '2px',
+        }
+    },
+    {
+        selector: 'edge[type="import"]',
+        style: {
+            'width':              1,
+            'line-color':         '#9ca3af',
+            'target-arrow-color': '#9ca3af',
+            'target-arrow-shape': 'triangle',
+            'curve-style':        'bezier',
+            'line-style':         'dashed',
+        }
+    },
+    {
+        selector: 'edge[type="usage"]',
+        style: {
+            'width':              1.5,
+            'line-color':         '#a78bfa',
+            'target-arrow-color': '#a78bfa',
+            'target-arrow-shape': 'triangle',
+            'curve-style':        'bezier',
+        }
+    },
+    {
+        selector: '.faded',
+        style: { 'opacity': 0.2 }
+    },
+    {
+        selector: '.highlighted',
+        style: {
+            'border-width': 3,
+            'border-color': '#fbbf24',
+        }
+    },
+];
 
 // ── Shared primitives ─────────────────────────────────────────────────────────
 
@@ -84,6 +272,20 @@ function DetailSection({ title, count, children }) {
             className: 'text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5'
         }, title + ' (' + count + ')'),
         children
+    );
+}
+
+function makeToggle(label, color, active, onClick) {
+    return React.createElement('button', {
+        onClick,
+        className: 'flex items-center gap-1.5 px-2 py-1 rounded text-xs cursor-pointer transition-colors ' +
+            (active ? 'bg-gray-100' : 'opacity-50 hover:opacity-75'),
+    },
+        React.createElement('span', {
+            className: 'w-2 h-2 rounded-full flex-shrink-0',
+            style: { backgroundColor: color }
+        }),
+        React.createElement('span', null, label)
     );
 }
 
@@ -362,13 +564,144 @@ function RoutesView({ analysis, onNavigateToFile }) {
     );
 }
 
+// ── GraphView ─────────────────────────────────────────────────────────────────
+
+function GraphView({ analysis, onNavigateToFile }) {
+    const containerRef = React.useRef(null);
+    const cyRef        = React.useRef(null);
+    const [showApiCalls, setShowApiCalls] = useState(true);
+    const [showImports,  setShowImports]  = useState(false);
+    const [showUsage,    setShowUsage]    = useState(false);
+    const [nodeTypeFilter, setNodeTypeFilter] = useState({
+        page: true, route: true, component: true,
+    });
+
+    const nextjs  = analysis.frameworks && analysis.frameworks.nextjs;
+    const hasData = !!(nextjs && (
+        (nextjs.pages      || []).length > 0 ||
+        (nextjs.routes     || []).length > 0 ||
+        (nextjs.components || []).length > 0
+    ));
+
+    // Initialize cytoscape; re-run only if analysis changes.
+    useEffect(() => {
+        if (!containerRef.current || !hasData) return;
+
+        if (typeof cytoscape === 'undefined') {
+            containerRef.current.textContent = 'cytoscape.js failed to load. Check network connectivity.';
+            return;
+        }
+
+        const graphData = buildGraphData(analysis);
+
+        const cy = cytoscape({
+            container: containerRef.current,
+            elements: [...graphData.nodes, ...graphData.edges],
+            style: cytoscapeStyle,
+            layout: {
+                name: 'cose',
+                padding: 30,
+                nodeRepulsion: 8000,
+                idealEdgeLength: 100,
+                randomize: false,
+            },
+        });
+
+        // cose layout is synchronous — all node positions are final here.
+        // Hide toggleable edge types so layout benefits from their constraints
+        // but they don't clutter the initial view.
+        cy.edges('[type="import"]').style('display', 'none');
+        cy.edges('[type="usage"]').style('display', 'none');
+
+        // Single click: highlight node and its immediate neighborhood; fade rest.
+        cy.on('tap', 'node', evt => {
+            const node = evt.target;
+            const neighborhood = node.connectedEdges().connectedNodes().union(node);
+            cy.elements().addClass('faded').removeClass('highlighted');
+            neighborhood.removeClass('faded');
+            node.connectedEdges().removeClass('faded');
+            node.addClass('highlighted');
+        });
+
+        // Click on background: clear all highlight state.
+        cy.on('tap', evt => {
+            if (evt.target === cy) {
+                cy.elements().removeClass('faded').removeClass('highlighted');
+            }
+        });
+
+        // Double-click: open in Files view.
+        cy.on('dbltap', 'node', evt => {
+            const file = evt.target.data('file');
+            if (file) onNavigateToFile(file);
+        });
+
+        cyRef.current = cy;
+        return () => { cy.destroy(); cyRef.current = null; };
+    }, [analysis]);
+
+    // Sync edge visibility with toggle state.
+    useEffect(() => {
+        if (!cyRef.current) return;
+        cyRef.current.edges('[type="api_call"]').style('display', showApiCalls ? 'element' : 'none');
+        cyRef.current.edges('[type="import"]').style('display',   showImports  ? 'element' : 'none');
+        cyRef.current.edges('[type="usage"]').style('display',    showUsage    ? 'element' : 'none');
+    }, [showApiCalls, showImports, showUsage]);
+
+    // Sync node visibility with type filter.
+    useEffect(() => {
+        if (!cyRef.current) return;
+        for (const [type, visible] of Object.entries(nodeTypeFilter)) {
+            cyRef.current.nodes('[type="' + type + '"]').style('display', visible ? 'element' : 'none');
+        }
+    }, [nodeTypeFilter]);
+
+    if (!hasData) {
+        return React.createElement('div', {
+            className: 'flex-1 flex items-center justify-center p-8 text-gray-400 text-sm text-center'
+        }, 'No graph data available. The graph view shows pages, API routes, and components from Next.js projects.');
+    }
+
+    return React.createElement('div', { className: 'flex-1 flex flex-col bg-gray-50 overflow-hidden' },
+        // Controls bar
+        React.createElement('div', {
+            className: 'flex items-center gap-4 px-4 py-2 bg-white border-b text-xs flex-shrink-0 flex-wrap'
+        },
+            React.createElement('div', { className: 'flex items-center gap-2' },
+                React.createElement('span', { className: 'text-gray-500 font-medium' }, 'Edges:'),
+                makeToggle('API calls', '#3b82f6', showApiCalls, () => setShowApiCalls(v => !v)),
+                makeToggle('Imports',   '#9ca3af', showImports,  () => setShowImports(v => !v)),
+                makeToggle('Usage',     '#a78bfa', showUsage,    () => setShowUsage(v => !v)),
+            ),
+            React.createElement('div', { className: 'flex items-center gap-2 ml-4' },
+                React.createElement('span', { className: 'text-gray-500 font-medium' }, 'Show:'),
+                makeToggle('Pages',      '#3b82f6', nodeTypeFilter.page,
+                    () => setNodeTypeFilter(p => ({ ...p, page:      !p.page }))),
+                makeToggle('Routes',     '#10b981', nodeTypeFilter.route,
+                    () => setNodeTypeFilter(p => ({ ...p, route:     !p.route }))),
+                makeToggle('Components', '#8b5cf6', nodeTypeFilter.component,
+                    () => setNodeTypeFilter(p => ({ ...p, component: !p.component }))),
+            ),
+            React.createElement('div', { className: 'ml-auto text-gray-400 text-xs' },
+                'Click to highlight · Double-click to open in Files'
+            ),
+        ),
+        // Graph canvas — flex-1 + minHeight:0 lets it fill remaining vertical space.
+        React.createElement('div', {
+            ref: containerRef,
+            className: 'flex-1',
+            style: { minHeight: 0 }
+        })
+    );
+}
+
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 function Tabs({ currentView, onSwitchView }) {
     const tabs = [
-        { id: 'files',  label: 'Files',       enabled: true },
-        { id: 'routes', label: 'Routes',      enabled: true },
-        { id: 'graph',  label: 'Graph',       enabled: false, suffix: '(soon)' },
+        { id: 'files',  label: 'Files',  enabled: true },
+        { id: 'routes', label: 'Routes', enabled: true },
+        { id: 'graph',  label: 'Graph',  enabled: true },
     ];
     return React.createElement('div', { className: 'flex border-b bg-white flex-shrink-0 px-4' },
         tabs.map(tab => {
@@ -386,12 +719,7 @@ function Tabs({ currentView, onSwitchView }) {
                 className: cls,
                 disabled: !tab.enabled,
                 onClick: tab.enabled && !isActive ? () => onSwitchView(tab.id) : undefined,
-            },
-                tab.label,
-                tab.suffix && React.createElement('span', {
-                    className: 'ml-1.5 text-gray-300 text-xs font-normal'
-                }, tab.suffix)
-            );
+            }, tab.label);
         })
     );
 }
@@ -457,7 +785,7 @@ function App() {
         });
     }
 
-    // Navigate from Routes view to Files view with a specific file selected.
+    // Navigate from Routes or Graph view to Files view with a specific file selected.
     function handleNavigateToFile(filePath) {
         setCurrentView('files');
         setSelectedFile(filePath);
@@ -492,10 +820,15 @@ function App() {
                 selectedFileInfo,
                 onNavigate: handleNavigate,
             })
-            : React.createElement(RoutesView, {
-                analysis,
-                onNavigateToFile: handleNavigateToFile,
-            })
+            : currentView === 'routes'
+                ? React.createElement(RoutesView, {
+                    analysis,
+                    onNavigateToFile: handleNavigateToFile,
+                })
+                : React.createElement(GraphView, {
+                    analysis,
+                    onNavigateToFile: handleNavigateToFile,
+                })
     );
 }
 
