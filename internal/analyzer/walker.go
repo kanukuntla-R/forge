@@ -54,6 +54,12 @@ var ignoreExts = map[string]bool{
 // We skip it so analysis.json never appears in its own output.
 var selfOutputPath = filepath.Join(".forge", "analysis.json")
 
+// IsIgnoredDir reports whether a directory with the given base name should be
+// skipped during analysis and file watching.
+func IsIgnoredDir(name string) bool {
+	return ignoreDirs[name]
+}
+
 // WalkResult holds the assembled analysis and any non-fatal per-file errors.
 type WalkResult struct {
 	Analysis *ProjectAnalysis

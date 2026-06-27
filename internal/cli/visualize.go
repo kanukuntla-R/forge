@@ -57,7 +57,7 @@ func runVisualize(out, errOut io.Writer, path string, refresh bool) error {
 		}
 	}
 
-	srv, err := dashboard.NewServer(analysisPath)
+	srv, err := dashboard.NewServer(absPath, analysisPath)
 	if err != nil {
 		return fmt.Errorf("starting dashboard: %w", err)
 	}
@@ -68,9 +68,14 @@ func runVisualize(out, errOut io.Writer, path string, refresh bool) error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		<-sigCh
-		fmt.Fprintln(errOut, "\nShutting down...")
-		cancel()
+		select {
+		case <-sigCh:
+			fmt.Fprintln(errOut, "\nShutting down...")
+			cancel()
+		case <-srv.IdleShutdownCh():
+			fmt.Fprintln(out, "\nNo browser connected, shutting down.")
+			cancel()
+		}
 	}()
 
 	fmt.Fprintf(out, "Dashboard running at %s\n", srv.URL())

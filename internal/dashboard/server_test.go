@@ -3,12 +3,15 @@ package dashboard
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 func writeAnalysisJSON(t *testing.T, dir string) string {
@@ -51,7 +54,7 @@ func TestNewServerCreatesValidServer(t *testing.T) {
 	dir := t.TempDir()
 	analysisPath := writeAnalysisJSON(t, dir)
 
-	srv, err := NewServer(analysisPath)
+	srv, err := NewServer(dir, analysisPath)
 	if err != nil {
 		t.Fatalf("NewServer() error: %v", err)
 	}
@@ -66,7 +69,7 @@ func TestNewServerCreatesValidServer(t *testing.T) {
 }
 
 func TestNewServerRejectsNonexistentAnalysis(t *testing.T) {
-	_, err := NewServer("/nonexistent/analysis.json")
+	_, err := NewServer(t.TempDir(), "/nonexistent/analysis.json")
 	if err == nil {
 		t.Fatal("NewServer() with nonexistent path: want error, got nil")
 	}
@@ -74,9 +77,9 @@ func TestNewServerRejectsNonexistentAnalysis(t *testing.T) {
 
 // startTestServer creates a server and starts it in the background.
 // The server stops when the returned cancel is called.
-func startTestServer(t *testing.T, analysisPath string) (*Server, context.CancelFunc) {
+func startTestServer(t *testing.T, dir, analysisPath string) (*Server, context.CancelFunc) {
 	t.Helper()
-	srv, err := NewServer(analysisPath)
+	srv, err := NewServer(dir, analysisPath)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -90,7 +93,7 @@ func startTestServer(t *testing.T, analysisPath string) (*Server, context.Cancel
 func TestServerServesIndexHTML(t *testing.T) {
 	dir := t.TempDir()
 	analysisPath := writeAnalysisJSON(t, dir)
-	srv, cancel := startTestServer(t, analysisPath)
+	srv, cancel := startTestServer(t, dir, analysisPath)
 	defer cancel()
 
 	resp, err := http.Get(srv.URL() + "/")
@@ -111,7 +114,7 @@ func TestServerServesIndexHTML(t *testing.T) {
 func TestServerServesAnalysis(t *testing.T) {
 	dir := t.TempDir()
 	analysisPath := writeAnalysisJSON(t, dir)
-	srv, cancel := startTestServer(t, analysisPath)
+	srv, cancel := startTestServer(t, dir, analysisPath)
 	defer cancel()
 
 	resp, err := http.Get(srv.URL() + "/api/analysis")
@@ -137,7 +140,7 @@ func TestServerServesAnalysis(t *testing.T) {
 func TestServerHealthEndpoint(t *testing.T) {
 	dir := t.TempDir()
 	analysisPath := writeAnalysisJSON(t, dir)
-	srv, cancel := startTestServer(t, analysisPath)
+	srv, cancel := startTestServer(t, dir, analysisPath)
 	defer cancel()
 
 	resp, err := http.Get(srv.URL() + "/api/health")
@@ -162,7 +165,7 @@ func TestServerHealthEndpoint(t *testing.T) {
 func TestServerShutdownOnContext(t *testing.T) {
 	dir := t.TempDir()
 	analysisPath := writeAnalysisJSON(t, dir)
-	srv, err := NewServer(analysisPath)
+	srv, err := NewServer(dir, analysisPath)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -180,6 +183,62 @@ func TestServerShutdownOnContext(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Error("server did not shut down within 2s of context cancellation")
 	}
+}
+
+func TestServerServesWebSocket(t *testing.T) {
+	dir := t.TempDir()
+	analysisPath := writeAnalysisJSON(t, dir)
+	srv, cancel := startTestServer(t, dir, analysisPath)
+	defer cancel()
+
+	url := "ws://localhost:" + portStr(srv.port) + "/ws"
+	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer conn.Close()
+
+	time.Sleep(20 * time.Millisecond)
+	if got := srv.hub.ClientCount(); got != 1 {
+		t.Errorf("hub.ClientCount = %d, want 1", got)
+	}
+}
+
+func TestServerShutsDownAfterIdleTimeout(t *testing.T) {
+	dir := t.TempDir()
+	analysisPath := writeAnalysisJSON(t, dir)
+	srv, err := NewServer(dir, analysisPath)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	// Use a short idle timeout and fast check interval so the test is quick.
+	srv.idleTimeout = 200 * time.Millisecond
+	srv.idleCheckInterval = 50 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go srv.Start(ctx) //nolint:errcheck
+	time.Sleep(10 * time.Millisecond)
+
+	// Connect and then disconnect a client so the idle clock starts.
+	url := "ws://localhost:" + portStr(srv.port) + "/ws"
+	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	conn.Close()
+	time.Sleep(20 * time.Millisecond)
+
+	select {
+	case <-srv.IdleShutdownCh():
+		// idle shutdown triggered correctly
+	case <-time.After(3 * time.Second):
+		t.Error("idle shutdown did not fire within 3s")
+	}
+}
+
+func portStr(port int) string {
+	return fmt.Sprintf("%d", port)
 }
 
 func containsString(body []byte, s string) bool {

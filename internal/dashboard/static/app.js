@@ -1,4 +1,4 @@
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -726,9 +726,18 @@ function Tabs({ currentView, onSwitchView }) {
 
 // ── Header ────────────────────────────────────────────────────────────────────
 
-function Header({ analysis }) {
+function Header({ analysis, lastUpdate }) {
     const { project, files } = analysis;
     const fw = project.frameworks || [];
+    const [justUpdated, setJustUpdated] = useState(false);
+
+    useEffect(() => {
+        if (!lastUpdate) return;
+        setJustUpdated(true);
+        const t = setTimeout(() => setJustUpdated(false), 3000);
+        return () => clearTimeout(t);
+    }, [lastUpdate]);
+
     return React.createElement('div', {
         className: 'bg-white border-b px-5 py-2.5 flex items-center gap-3 flex-shrink-0'
     },
@@ -737,6 +746,9 @@ function Header({ analysis }) {
             key: f,
             className: 'bg-indigo-50 text-indigo-600 text-xs px-2 py-0.5 rounded font-mono'
         }, f)),
+        justUpdated && React.createElement('span', {
+            className: 'text-xs px-2 py-0.5 rounded bg-green-50 text-green-600 font-medium'
+        }, 'Just updated'),
         React.createElement('span', { className: 'ml-auto text-xs text-gray-400' },
             files.length + ' ' + (files.length === 1 ? 'file' : 'files'))
     );
@@ -750,8 +762,13 @@ function App() {
     const [expandedDirs, setExpandedDirs] = useState(new Set());
     const [currentView,  setCurrentView]  = useState('files');
     const [error,        setError]        = useState(null);
+    const [lastUpdate,   setLastUpdate]   = useState(null);
 
-    useEffect(() => {
+    const wsRef              = useRef(null);
+    const reconnectTimerRef  = useRef(null);
+    const reconnectDelayRef  = useRef(1000);
+
+    function fetchAnalysis() {
         fetch('/api/analysis')
             .then(r => r.json())
             .then(data => {
@@ -764,7 +781,55 @@ function App() {
                 setExpandedDirs(top);
             })
             .catch(e => setError(e.message));
+    }
+
+    useEffect(() => {
+        fetchAnalysis();
     }, []);
+
+    useEffect(() => {
+        connectWebSocket();
+        return () => {
+            if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+            if (wsRef.current) wsRef.current.close();
+        };
+    }, []);
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        ws.onopen = () => {
+            reconnectDelayRef.current = 1000;
+        };
+
+        ws.onmessage = (e) => {
+            try {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'analysis_updated') {
+                    fetch('/api/analysis')
+                        .then(r => r.json())
+                        .then(data => {
+                            setAnalysis(data);
+                            setLastUpdate(Date.now());
+                        })
+                        .catch(err => console.error('re-fetch failed:', err));
+                }
+            } catch (err) {
+                console.error('ws message parse error:', err);
+            }
+        };
+
+        ws.onclose = () => {
+            const delay = reconnectDelayRef.current;
+            reconnectTimerRef.current = setTimeout(() => {
+                reconnectDelayRef.current = Math.min(delay * 2, 30000);
+                connectWebSocket();
+            }, delay);
+        };
+
+        wsRef.current = ws;
+    }
 
     function handleToggle(dirPath) {
         setExpandedDirs(prev => {
@@ -809,7 +874,7 @@ function App() {
     const selectedFileInfo = analysis.files.find(f => f.path === selectedFile) || null;
 
     return React.createElement('div', { className: 'h-screen flex flex-col bg-gray-50' },
-        React.createElement(Header, { analysis }),
+        React.createElement(Header, { analysis, lastUpdate }),
         React.createElement(Tabs, { currentView, onSwitchView: setCurrentView }),
         currentView === 'files'
             ? React.createElement(FilesView, {

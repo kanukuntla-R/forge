@@ -43,32 +43,17 @@ func runAnalyze(out, errOut io.Writer, path string, asJSON bool) error {
 		return fmt.Errorf("resolving path: %w", err)
 	}
 
-	reg := analyzer.NewRegistry()
-
 	start := time.Now()
-	result, err := analyzer.Walk(absPath, reg)
+	analysis, warnings, err := analyzer.AnalyzeProject(absPath)
 	if err != nil {
-		return fmt.Errorf("analyzing %s: %w", absPath, err)
+		return err
 	}
 
-	for _, e := range result.Errors {
+	for _, e := range warnings {
 		fmt.Fprintf(errOut, "forge: warning: %v\n", e)
 	}
 
-	// Resolve local import sources to their actual file paths using tsconfig aliases.
-	resolver, _ := analyzer.NewResolver(absPath, result.Analysis)
-	resolver.Resolve(result.Analysis)
-
-	// Framework detection: enrich analysis with framework-specific structure.
-	for _, d := range []analyzer.FrameworkDetector{analyzer.NewNextjsDetector()} {
-		if d.Detect(absPath) {
-			if err := d.EnrichAnalysis(result.Analysis); err != nil {
-				fmt.Fprintf(errOut, "forge: warning: framework %s: %v\n", d.Name(), err)
-			}
-		}
-	}
-
-	data, err := json.MarshalIndent(result.Analysis, "", "  ")
+	data, err := json.MarshalIndent(analysis, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling analysis: %w", err)
 	}
@@ -88,8 +73,8 @@ func runAnalyze(out, errOut io.Writer, path string, asJSON bool) error {
 
 	elapsed := time.Since(start)
 	fmt.Fprintf(out, "Analyzed %d %s in %s\n",
-		len(result.Analysis.Files),
-		plural(len(result.Analysis.Files), "file", "files"),
+		len(analysis.Files),
+		plural(len(analysis.Files), "file", "files"),
 		elapsed.Round(time.Millisecond))
 	fmt.Fprintln(out, "Analysis written to .forge/analysis.json")
 	return nil
