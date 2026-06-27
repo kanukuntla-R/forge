@@ -88,8 +88,8 @@ func exportDeclarations(node *sitter.Node, src []byte) []DeclarationInfo {
 
 // varDeclarations extracts declarations from lexical_declaration or
 // variable_declaration nodes (const/let/var). Each variable_declarator child
-// becomes one declaration. Arrow function values assigned to PascalCase names
-// are classified as components.
+// becomes one declaration. Arrow functions and known React wrapper calls
+// assigned to PascalCase names are classified as components.
 func varDeclarations(node *sitter.Node, src []byte, line int) []DeclarationInfo {
 	var out []DeclarationInfo
 	for i := 0; i < int(node.NamedChildCount()); i++ {
@@ -102,22 +102,72 @@ func varDeclarations(node *sitter.Node, src []byte, line int) []DeclarationInfo 
 			continue
 		}
 		typ := "variable"
-		if isComponent(name) && declaratorValueType(child) == "arrow_function" {
-			typ = "component"
+		if isComponent(name) {
+			val := declaratorValue(child)
+			if val != nil && (val.Type() == "arrow_function" || isComponentCallExpression(val, src)) {
+				typ = "component"
+			}
 		}
 		out = append(out, DeclarationInfo{Name: name, Type: typ, Line: line})
 	}
 	return out
 }
 
-// declaratorValueType returns the tree-sitter type of the value node in a
-// variable_declarator. Named children are [identifier, value]; the = sign
-// is anonymous and invisible to NamedChild.
-func declaratorValueType(declarator *sitter.Node) string {
+// declaratorValue returns the value node (child 1) of a variable_declarator, or nil.
+// Named children are [identifier, value]; the = sign is anonymous and invisible to NamedChild.
+func declaratorValue(declarator *sitter.Node) *sitter.Node {
 	if declarator.NamedChildCount() < 2 {
+		return nil
+	}
+	return declarator.NamedChild(1)
+}
+
+// declaratorValueType returns the tree-sitter type of the value node in a
+// variable_declarator, or "" if none. Kept for backward compatibility.
+func declaratorValueType(declarator *sitter.Node) string {
+	val := declaratorValue(declarator)
+	if val == nil {
 		return ""
 	}
-	return declarator.NamedChild(1).Type()
+	return val.Type()
+}
+
+// componentWrappers is the set of function names that produce a React component
+// when the result is assigned to a PascalCase variable.
+var componentWrappers = map[string]bool{
+	"forwardRef": true,
+	"memo":       true,
+	"lazy":       true,
+}
+
+// isComponentCallExpression returns true if the node is a call_expression whose
+// function is a known React component wrapper: React.forwardRef, React.memo,
+// React.lazy, or the bare forms forwardRef, memo, lazy.
+// Mirrors the member_expression traversal pattern in api_calls.go.
+func isComponentCallExpression(node *sitter.Node, src []byte) bool {
+	if node == nil || node.Type() != "call_expression" {
+		return false
+	}
+	// call_expression named children: [function, arguments] (same as api_calls.go:55)
+	if node.NamedChildCount() < 1 {
+		return false
+	}
+	fn := node.NamedChild(0)
+	switch fn.Type() {
+	case "member_expression":
+		// React.forwardRef, React.memo, React.lazy
+		// Named children: [object(identifier), property(property_identifier)] — confirmed by api_calls.go:139-140
+		if fn.NamedChildCount() < 2 {
+			return false
+		}
+		obj := fn.NamedChild(0).Content(src)
+		prop := fn.NamedChild(1).Content(src)
+		return obj == "React" && componentWrappers[prop]
+	case "identifier":
+		// bare forwardRef, memo, lazy
+		return componentWrappers[fn.Content(src)]
+	}
+	return false
 }
 
 // funcType returns "component" for PascalCase names, "function" otherwise.

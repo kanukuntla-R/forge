@@ -208,3 +208,44 @@ func TestDeclarationsClassMethodsNotCounted(t *testing.T) {
 	}
 	assertDecl(t, decls[0], "Foo", "class")
 }
+
+func TestDeclarationsForwardRefComponent(t *testing.T) {
+	decls := parseDeclarations(t, `const Button = React.forwardRef((props, ref) => null)`)
+	if len(decls) != 1 {
+		t.Fatalf("want 1 declaration, got %d", len(decls))
+	}
+	assertDecl(t, decls[0], "Button", "component")
+}
+
+func TestDeclarationsMemoComponent(t *testing.T) {
+	decls := parseDeclarations(t, `const MemoButton = React.memo(() => null)`)
+	if len(decls) != 1 {
+		t.Fatalf("want 1 declaration, got %d", len(decls))
+	}
+	assertDecl(t, decls[0], "MemoButton", "component")
+}
+
+func TestDeclarationsBareForwardRefComponent(t *testing.T) {
+	decls := parseDeclarations(t, `const Button = forwardRef((props, ref) => null)`)
+	if len(decls) != 1 {
+		t.Fatalf("want 1 declaration, got %d", len(decls))
+	}
+	assertDecl(t, decls[0], "Button", "component")
+}
+
+func TestDeclarationsLazyComponent(t *testing.T) {
+	decls := parseDeclarations(t, "const Lazy = React.lazy(() => import('./X'))")
+	if len(decls) != 1 {
+		t.Fatalf("want 1 declaration, got %d", len(decls))
+	}
+	assertDecl(t, decls[0], "Lazy", "component")
+}
+
+func TestDeclarationsCallExpressionNotComponent(t *testing.T) {
+	// PascalCase variable assigned to an unknown call — stays "variable".
+	decls := parseDeclarations(t, `const Result = doSomething()`)
+	if len(decls) != 1 {
+		t.Fatalf("want 1 declaration, got %d", len(decls))
+	}
+	assertDecl(t, decls[0], "Result", "variable")
+}

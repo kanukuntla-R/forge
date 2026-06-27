@@ -25,6 +25,17 @@ stdin/stdout JSON, so humans, scripts, and AI agents can all drive it.`,
 	SilenceErrors: true,
 }
 
+func init() {
+	// Print banner before the default --help output.
+	orig := rootCmd.HelpFunc()
+	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		printBanner()
+		orig(cmd, args)
+	})
+	// Print banner before the --version line.
+	rootCmd.SetVersionTemplate(buildVersionTemplate())
+}
+
 // Execute runs the root command. Called by main.
 // Any error returned here propagates up and becomes the process exit code.
 func Execute() error {

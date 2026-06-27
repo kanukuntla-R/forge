@@ -131,7 +131,18 @@ function buildGraphData(analysis) {
         }
     }
 
-    return { nodes, edges };
+    // Dedup: if both an import and a usage edge exist between the same pair,
+    // keep only the usage edge (more meaningful for component relationships).
+    const usagePairs = new Set(
+        edges.filter(e => e.data.type === 'usage')
+             .map(e => e.data.source + '|' + e.data.target)
+    );
+    return {
+        nodes,
+        edges: edges.filter(e =>
+            !(e.data.type === 'import' && usagePairs.has(e.data.source + '|' + e.data.target))
+        ),
+    };
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -179,8 +190,9 @@ const cytoscapeStyle = [
             'text-halign':  'center',
             'font-size':    '10px',
             'font-family':  'monospace',
-            'width':        80,
-            'height':       50,
+            'width':        'label',
+            'height':       'label',
+            'padding':      '10px',
             'border-width': 0,
         }
     },
@@ -195,8 +207,9 @@ const cytoscapeStyle = [
             'text-halign':  'center',
             'font-size':    '10px',
             'font-family':  'monospace',
-            'width':        60,
-            'height':       40,
+            'width':        'label',
+            'height':       'label',
+            'padding':      '10px',
             'border-width': 0,
         }
     },
@@ -348,8 +361,11 @@ function CallRow({ call }) {
 function FileDetails({ file, onNavigate }) {
     if (!file) {
         return React.createElement('div', {
-            className: 'flex-1 flex items-center justify-center text-gray-400 text-sm'
-        }, 'Select a file to view details');
+            className: 'flex-1 flex items-center justify-center flex-col gap-1 text-sm'
+        },
+            React.createElement('span', { className: 'text-gray-400' }, 'Select a file to view details'),
+            React.createElement('span', { className: 'text-gray-300 text-xs' }, 'or use the Routes tab to see API connections')
+        );
     }
 
     const imports      = file.imports      || [];
@@ -504,7 +520,7 @@ function ConnectionsSection({ apiCalls, files, onNavigateToFile }) {
         apiCalls.length > 0
             ? apiCalls.map((call, i) =>
                 React.createElement(ConnectionRow, { key: i, call, files, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No connections found.')
+            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No frontend-to-backend calls detected. Add a fetch call to a page to see connections here.')
     );
 }
 
@@ -539,7 +555,7 @@ function APIRoutesSection({ routes, onNavigateToFile }) {
         routes.length > 0
             ? routes.map((route, i) =>
                 React.createElement(RouteRow, { key: i, route, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No API routes found.')
+            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No API routes in this project. API routes live in app/api/*/route.ts files.')
     );
 }
 
@@ -659,7 +675,7 @@ function GraphView({ analysis, onNavigateToFile }) {
     if (!hasData) {
         return React.createElement('div', {
             className: 'flex-1 flex items-center justify-center p-8 text-gray-400 text-sm text-center'
-        }, 'No graph data available. The graph view shows pages, API routes, and components from Next.js projects.');
+        }, 'No graph data available. The graph view shows pages, API routes, and components from Next.js projects. Add files to your project to populate it.');
     }
 
     return React.createElement('div', { className: 'flex-1 flex flex-col bg-gray-50 overflow-hidden' },
