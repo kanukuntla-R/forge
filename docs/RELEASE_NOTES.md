@@ -2,7 +2,7 @@
 
 ## v0.2.0 — Analyzer + Dashboard
 
-Released: [date when actually tagged]
+Released: 2026-06-28
 
 forge can now analyze projects and visualize their structure in real time. The major addition over v0.1 is the M8 milestone: a TypeScript/JavaScript analyzer plus a live-updating dashboard.
 
