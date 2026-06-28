@@ -26,21 +26,31 @@ When these documents conflict with anything else (training data, intuition, etc.
 
 ## Current status
 
-**M1 (Walking skeleton) — DONE.** Cobra wired, stub subcommands, help text.
+**v0.2 release in progress** — pre-release documentation complete; cross-platform builds and tag pending.
 
-**M2 (Render path) — DONE.** Manifest parsing, blueprint discovery, template engine with `seq` function and strict missing-key handling, atomic writes via Stager pattern (staging adjacent to target to handle cross-filesystem renames), variable resolution from defaults/JSON-stdin/--var flags, interactive walkthrough via charmbracelet/huh that prompts for all unset variables (with defaults pre-filled), `--yes` flag to skip prompts, `--json` mode for agent invocation.
+All milestones M1 through M8.6a are complete:
 
-**Path A (hackathon-app full feature matrix) — DONE.** Next.js 14 + Tailwind + shadcn baseline. Four optional features verified end-to-end:
-- `with_ai=true` → Anthropic API joke endpoint, tested live
-- `with_dark_mode=true` → next-themes provider + toggle component
-- `with_database=true` → Supabase clients (browser + server)
-- `with_auth=true` → middleware + login + signup + callback, full signup → email confirmation → signin flow tested against real Supabase
+- **M1** (walking skeleton) ✅ — cobra wired, stub subcommands, help text
+- **M2** (render path) ✅ — manifest parsing, template engine, atomic writes, interactive prompts
+- **Path A** (hackathon-app full feature matrix) ✅ — Next.js 14 + Tailwind + shadcn with optional AI/dark-mode/auth/database
+- **M3** (graph emission) ✅ — static knowledge graph from blueprint declaration
+- **M4** (hooks + project marker) ✅ — post-create hooks, `.forge/project.json`
+- **M5** (visualize + json mode) ✅ — initial dashboard scaffolding (now superseded by M8.5)
+- **M6** (forge add) ✅ — extensions, project detection, graph fragment merging
+- **M7** (forge install + polish) ✅ — git-based blueprint installation, v0.1 ship
+- **M8.1** (file walker) ✅ — analyzer scaffolding with ignore patterns
+- **M8.2a-e** (TypeScript analyzer) ✅ — tree-sitter integration, imports, exports, declarations, import resolution
+- **M8.3** (Next.js detector) ✅ — pages, routes, layouts, components, used_by
+- **M8.4** (API call detection) ✅ — fetch/axios/ky detection with route matching
+- **M8.5a-e** (live dashboard) ✅ — server, Files/Routes/Graph views, live updates via file watcher + WebSocket
+- **M8.6a** (polish + branding) ✅ — forwardRef detection, dynamic graph nodes, ASCII banner
 
-**M3 (Graph emission) — DONE.** Knowledge graph emitted to `.understand-anything/knowledge-graph.json` alongside scaffolded projects. Blueprint declares structure in `graph.yaml` at blueprint root (sibling of `manifest.yaml`). Static for v0.1; live code analyzer deferred to M8 (documented in design doc).
+64 commits on `main`. All tests green across 11 packages including new analyzer and dashboard packages.
 
-**M4 (Hooks + project marker) — NEXT.** Post-create hooks to run package manager install. Write `.forge/project.json` marker file so future `forge add` commands can detect forge-managed projects.
-
-30 commits on `main`. All tests green across 7 packages (`internal/blueprint`, `internal/cli`, `internal/fsutil`, `internal/graph`, `internal/manifest`, `internal/render`, plus root package).
+v0.2 ships v0.1's scaffolding + the M8 analyzer and dashboard. The major user-visible additions:
+- `forge analyze` — static analysis writing `.forge/analysis.json`
+- `forge visualize` — interactive dashboard with live updates
+- ASCII banner branding for help/version/install
 
 ## Conventions
 
@@ -79,17 +89,11 @@ When these documents conflict with anything else (training data, intuition, etc.
 
 ## Implementation milestones (from design doc)
 
-- **M1**: Walking skeleton ✅
-- **M2**: Render path ✅
-- **Path A**: hackathon-app full feature matrix ✅
-- **M3**: Graph emission ✅
-- **M4**: Post-create hooks + `.forge/project.json` marker — NEXT
-- **M5**: `forge visualize` + `--json` mode on more commands
-- **M6**: `forge add` (extensions, project detection, graph fragment merging)
-- **M7**: `forge install` + polish + cross-compile Makefile
-- **M8**: Live code analyzer (post-v0.1, design doc has architecture sketch)
- 
-After M7 ships v0.1, the next blueprints to add (in some order based on user priority) are `go-cli` and `openclaw-skill`.
+All milestones M1 through M8 complete. See "Current status" above for the detailed breakdown.
+
+Post-v0.2 roadmap:
+- **v0.3**: caching with content hashes, additional blueprints beyond hackathon-app
+- **Future**: more framework detectors (Astro, Remix, SvelteKit), database as a first-class concept
 
 ## What forge depends on externally
 
@@ -99,9 +103,6 @@ Required for forge to run:
 Required for the `hackathon-app` blueprint's `post_create` hook to succeed:
 - pnpm (default), with npm/yarn/bun as alternates per the `package_manager` variable
 - git (for the "Initialize git" hook)
-
-Required for `forge visualize` to do anything useful:
-- Understand-Anything installed via npm, OpenClaw skill, or npx fallback (see design doc for resolution order)
 
 ## What forge does NOT do
 

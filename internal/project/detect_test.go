@@ -30,7 +30,7 @@ func sampleDetectProject() project.Project {
 	return project.Project{
 		Blueprint:        "hackathon-app",
 		BlueprintVersion: "0.1.0",
-		ForgeVersion:     "0.1.0-dev",
+		ForgeVersion:     "0.2.0",
 		CreatedAt:        "2026-06-12T00:00:00Z",
 		Variables:        map[string]any{"name": "demo"},
 	}

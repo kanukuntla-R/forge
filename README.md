@@ -1,12 +1,16 @@
 # forge
 
-A meta-CLI for scaffolding projects from blueprints. One command produces a working project; another adds new pieces to it. Built in Go, ships as a single static binary.
+A meta-CLI for scaffolding projects from blueprints and understanding them as they grow. One command produces a working project. Another adds new pieces to it. A third opens an interactive dashboard showing how the pieces wire together. Built in Go, ships as a single static binary.
+
+![forge dashboard graph view](docs/screenshots/dashboard-graph.png)
 
 ## Why forge
 
 When you start a new project — a hackathon prototype, a side project, a service — you spend hours wiring up the same foundation every time. Next.js + Tailwind + shadcn + auth + a database. Or Go + cobra + a logger. Or whatever your stack is. forge codifies that foundation as a **blueprint** — a template that knows your conventions — and gets you to "ready to write the actual code" in seconds.
 
 Once your project exists, forge can extend it. Need a new API route? `forge add api-route users`. Need a new page? `forge add page dashboard`. The extensions know your project structure, follow your conventions, and update your project's metadata as they go.
+
+Then, as your project grows — especially when AI tools like Claude Code and Cursor are writing parts of it — you need to verify the wiring. Did that new component get used? Does that fetch call hit a real route? Is anything orphaned? `forge visualize` analyzes your project and shows you the answers in a real-time dashboard. Edit a file, see the graph update.
 
 ## Quick demo
 
@@ -46,6 +50,28 @@ Knowledge graph updated: 1 nodes added, 0 edges added
 Project marker updated
 ```
 
+## Quick demo — Analyze your project
+
+Once you have a project (any Next.js project, not just forge-scaffolded), you can see its structure:
+
+```bash
+$ cd my-app
+$ forge visualize
+Analyzing my-app...
+Analyzed 16 files in 10ms
+Analysis written to .forge/analysis.json
+Dashboard running at http://localhost:5050
+Press Ctrl+C to stop.
+```
+
+This opens an interactive dashboard with three views:
+
+- **Files** — every file in your project with imports, exports, declarations, and API calls
+- **Routes** — frontend pages connected to backend API routes, with detected HTTP calls
+- **Graph** — a force-directed visualization of the whole structure
+
+The dashboard updates live as you edit files. When you tell Claude Code to "add a new page that fetches /api/users," you can watch the new connection appear in real time.
+
 ## Install
 
 **Quick install (recommended)**
@@ -70,9 +96,10 @@ make install   # builds and installs to ~/.local/bin/forge
 
 - `forge new <blueprint> [name]` — scaffold a new project from a blueprint
 - `forge add <extension> [args]` — add an extension to an existing project
+- `forge analyze [path]` — analyze a project and write `.forge/analysis.json`
+- `forge visualize [path]` — open the analysis dashboard with live updates
 - `forge list` — list available blueprints (embedded + installed)
 - `forge install <git-url>` — install a blueprint from a git repository
-- `forge visualize` — open the project's knowledge graph
 
 All commands support `--help`. Most support `--json` for structured output.
 
@@ -84,6 +111,7 @@ All commands support `--help`. Most support `--json` for structured output.
 - **Interactive prompts**: when run in a terminal, forge walks through unset variables; in CI, it accepts `--var` flags or JSON on stdin
 - **Atomic writes**: file operations stage-then-rename, so failed scaffolds don't leave half-written state
 - **Embedded + installed blueprints**: ship blueprints inside the binary, install more from any git URL
+- **Analysis + dashboard**: static analysis of TypeScript/JavaScript projects with a live-updating dashboard showing files, routes, components, and API connections
 
 ## Built-in blueprint
 
@@ -107,13 +135,14 @@ Blueprints are directories with a manifest, a template tree, and optional extens
 
 ## Status
 
-v0.1 is feature-complete. The roadmap beyond v0.1 includes:
+v0.2 ships scaffolding + analysis. The roadmap beyond v0.2 includes:
 
-- **Live code analysis** — replace static graph fragments with a real-time analyzer that reads project source
-- **Database as a first-class concept** — pluggable database providers (Supabase, Postgres, libsql, etc.) as installable extensions
+- **Caching** — content-hash-based caching for faster re-analysis on large projects
+- **More framework detectors** — beyond Next.js (Astro, Remix, SvelteKit)
 - **More blueprints** — Go CLI starter, Python API starter, others as needs emerge
+- **Database as a first-class concept** — pluggable database providers (Supabase, Postgres, libsql, etc.) as installable extensions
 
-See [`docs/forge-design.md`](docs/forge-design.md) for full v0.1 details and post-v0.1 roadmap.
+See [`docs/forge-design.md`](docs/forge-design.md) and [`docs/forge-analyzer-design.md`](docs/forge-analyzer-design.md) for full design notes. See [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md) for what shipped in v0.2.
 
 ## License
 
