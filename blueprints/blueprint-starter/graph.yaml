@@ -1,0 +1,31 @@
+version: "1"
+project:
+  name: "{{ .Name }}"
+  description: "{{ .Description }}"
+nodes:
+  - id: manifest
+    type: config
+    label: manifest.yaml
+    path: manifest.yaml
+  - id: template-dir
+    type: directory
+    label: template/
+    path: template/
+  - id: graph-yaml
+    type: config
+    label: graph.yaml
+    path: graph.yaml
+  - id: ext-page
+    type: extension
+    label: page extension
+    path: extensions/page/
+edges:
+  - from: manifest
+    to: template-dir
+    type: describes
+  - from: manifest
+    to: graph-yaml
+    type: describes
+  - from: manifest
+    to: ext-page
+    type: declares

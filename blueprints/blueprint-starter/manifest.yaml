@@ -1,0 +1,29 @@
+name: blueprint-starter
+display_name: "Blueprint Starter"
+description: "Scaffold a new forge blueprint with a working note-app demo."
+version: "0.1.0"
+authors: ["kanukuntla-r"]
+
+kind: app
+
+stack:
+  tags: [blueprint, scaffolding, forge]
+
+variables:
+  - name: description
+    prompt: "One-line description of what your blueprint does"
+    type: string
+    default: "A blueprint created with blueprint-starter"
+
+  - name: author
+    prompt: "Your name (leave blank to omit)"
+    type: string
+    default: ""
+
+target:
+  default_path: "./{{ .Name }}"
+
+post_create:
+  - name: "Initialize git"
+    shell: "git init && git add -A && git commit -m 'Initial blueprint from blueprint-starter'"
+    optional: true

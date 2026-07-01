@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main>
+        <!-- The page_name arg is available in graph-fragment.yaml as {{.PageName}},
+             but cannot be used here to produce a dynamic filename (e.g. about.html).
+             Dynamic output filenames require a path-segment template in the extension
+             template directory (e.g. {{ .PageName }}.html.tmpl), which forge's render
+             engine would also evaluate during blueprint-starter's scaffolding pass —
+             failing because PageName is not a blueprint-starter variable.
+             This is tracked as future work in NOTES.md. -->
+        <h1>Page</h1>
+        <p><a href="index.html">Back to notes</a></p>
+    </main>
+</body>
+</html>

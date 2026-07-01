@@ -1,0 +1,32 @@
+name: {{ .Name }}
+display_name: "{{ .Name }}"
+description: "{{ .Description }}"
+{{- if .Author }}
+authors: ["{{ .Author }}"]
+{{- end }}
+version: "0.1.0"
+
+kind: app
+
+stack:
+  tags: [notes, web, html]
+
+variables:
+  - name: project_name
+    prompt: "Name of the note app"
+    type: string
+
+post_create:
+  - name: "Initialize git"
+    shell: "git init && git add -A && git commit -m 'Initial note app'"
+    optional: true
+
+extensions:
+  - name: page
+    description: "Add a new HTML page to the note app"
+    template: extensions/page/template
+    args:
+      - name: page_name
+        prompt: "Page name (kebab-case)"
+        pattern: "^[a-z][a-z0-9-]*$"
+    graph_fragment: extensions/page/graph-fragment.yaml

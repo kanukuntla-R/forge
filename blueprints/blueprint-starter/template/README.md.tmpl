@@ -1,0 +1,72 @@
+# {{ .Name }}
+
+{{ .Description }}
+
+A forge blueprint scaffolded with [blueprint-starter](https://github.com/kanukuntla-r/forge).
+
+## What this blueprint produces
+
+Running `forge new {{ .Name }} my-notes-app` creates:
+
+- `index.html` — note input form + localStorage-backed list
+- `style.css` — minimalist black/gray/white styling
+- `app.js` — note persistence via localStorage
+- `.understand-anything/knowledge-graph.json` — project knowledge graph
+
+## Testing locally
+
+Push this directory to a git remote, then install and scaffold:
+
+```bash
+git push origin main
+forge install <your-git-url>
+forge new {{ .Name }} my-notes-app --yes --no-hooks
+open my-notes-app/index.html
+```
+
+## Adding a page
+
+From inside a scaffolded project:
+
+```bash
+forge add page --var page_name=about
+```
+
+Creates `page.html` linked back to the main page.
+
+## Extending this blueprint
+
+### Add a template variable
+
+In `manifest.yaml`, add to `variables:`:
+
+```yaml
+  - name: my_var
+    prompt: "What value?"
+    type: string
+    default: "default"
+```
+
+Rename any file in `template/` from `file.ext` to `file.ext.tmpl` and reference
+the variable in the content as `{{ "{{" }}.MyVar{{ "}}" }}` (PascalCase key).
+
+### Add static files
+
+Drop any file under `template/`. Files without a `.tmpl` suffix are copied verbatim —
+no variable expansion, safe for binary files or files that contain their own
+template syntax.
+
+### Add an extension
+
+1. Create `extensions/<name>/template/` with the files to add.
+2. Declare it in `manifest.yaml` under `extensions:`.
+3. Optionally create `extensions/<name>/graph-fragment.yaml` to update the
+   knowledge graph when the extension is applied.
+
+### Publish
+
+Anyone can install your blueprint with:
+
+```bash
+forge install <git-url>
+```

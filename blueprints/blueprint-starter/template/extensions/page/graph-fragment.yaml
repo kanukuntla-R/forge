@@ -1,0 +1,11 @@
+# Rendered by forge add via render.Render — NOT by the template walk.
+# {{.PageName}} is safe here: it expands at extension-apply time, not during blueprint scaffolding.
+nodes:
+  - id: "{{ .PageName }}"
+    type: page
+    label: "{{ .PageName }}"
+    path: page.html
+edges:
+  - from: "{{ .PageName }}"
+    to: index
+    type: linked_from

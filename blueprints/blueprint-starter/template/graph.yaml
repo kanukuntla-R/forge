@@ -1,0 +1,24 @@
+version: "1"
+project:
+  name: "{{ .Name }}"
+  description: "A minimal note-taking app"
+nodes:
+  - id: index
+    type: page
+    label: Main page
+    path: index.html
+  - id: style
+    type: module
+    label: Stylesheet
+    path: style.css
+  - id: app
+    type: module
+    label: App logic
+    path: app.js
+edges:
+  - from: index
+    to: style
+    type: imports
+  - from: index
+    to: app
+    type: imports
