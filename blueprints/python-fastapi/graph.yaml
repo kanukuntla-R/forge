@@ -1,0 +1,78 @@
+version: "1"
+project:
+  name: "{{ .Name }}"
+  description: "{{ .Description }}"
+nodes:
+  - id: main
+    type: entry
+    label: main.py
+    path: src/main.py
+  - id: config
+    type: config
+    label: config.py
+    path: src/config.py
+  - id: health
+    type: route
+    label: /health
+    path: src/routes/health.py
+  - id: pyproject
+    type: config
+    label: pyproject.toml
+    path: pyproject.toml
+{{ if or .WithDatabase .WithAuth }}
+  - id: database
+    type: infrastructure
+    label: Database
+    path: src/database.py
+{{ end }}
+{{ if .WithDatabase }}
+  - id: users
+    type: route
+    label: /users
+    path: src/routes/users.py
+{{ end }}
+{{ if .WithAuth }}
+  - id: auth
+    type: route
+    label: /auth
+    path: src/routes/auth.py
+{{ end }}
+{{ if .WithOpenai }}
+  - id: chat
+    type: route
+    label: /chat
+    path: src/routes/chat.py
+{{ end }}
+edges:
+  - from: main
+    to: health
+    type: routes
+  - from: main
+    to: config
+    type: imports
+{{ if or .WithDatabase .WithAuth }}
+  - from: main
+    to: database
+    type: uses
+{{ end }}
+{{ if .WithDatabase }}
+  - from: main
+    to: users
+    type: routes
+  - from: users
+    to: database
+    type: queries
+{{ end }}
+{{ if .WithAuth }}
+  - from: main
+    to: auth
+    type: routes
+  - from: auth
+    to: database
+    type: queries
+{{ end }}
+{{ if .WithOpenai }}
+  - from: main
+    to: chat
+    type: routes
+{{ end }}

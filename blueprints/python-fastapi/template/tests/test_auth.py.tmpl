@@ -1,0 +1,23 @@
+{{- if .WithAuth -}}
+import pytest
+from httpx import AsyncClient, ASGITransport
+
+from src.main import app
+
+
+@pytest.mark.asyncio
+async def test_register(db_session) -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/auth/register", json={"email": "user@example.com"})
+    assert response.status_code == 200
+    assert response.json()["email"] == "user@example.com"
+
+
+@pytest.mark.asyncio
+async def test_login_unknown_user(db_session) -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/auth/login?email=nobody@example.com")
+    assert response.status_code == 401
+{{- end -}}

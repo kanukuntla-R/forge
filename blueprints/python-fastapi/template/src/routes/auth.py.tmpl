@@ -1,0 +1,32 @@
+{{- if .WithAuth -}}
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from src.database import get_db
+from src.models.user import User
+from src.auth.jwt import create_access_token
+from src.schemas.user import UserCreate, UserResponse
+
+router = APIRouter()
+
+
+@router.post("/register", response_model=UserResponse)
+async def register(user: UserCreate, db: AsyncSession = Depends(get_db)) -> UserResponse:
+    new_user = User(email=user.email)
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+    return new_user
+
+
+@router.post("/login")
+async def login(email: str, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if user is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="User not found")
+    token = create_access_token({"sub": str(user.id)})
+    return {"access_token": token, "token_type": "bearer"}
+{{- end -}}

@@ -1,0 +1,18 @@
+{{- if .WithDocker -}}
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env
+.env.local
+*.db
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/
+*.egg-info/
+.git/
+{{- end -}}

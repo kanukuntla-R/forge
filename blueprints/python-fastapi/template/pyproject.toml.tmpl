@@ -1,0 +1,53 @@
+[project]
+name = "{{ .Name }}"
+version = "0.1.0"
+description = "{{ .Description }}"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic-settings>=2.1.0",
+{{- if or .WithDatabase .WithAuth }}
+    "sqlalchemy>=2.0.25",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    "pydantic[email]>=2.5.0",
+{{- end }}
+{{- if .WithAuth }}
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+{{- end }}
+{{- if .WithOpenai }}
+    "openai>=1.10.0",
+    "anthropic>=0.15.0",
+{{- end }}
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.26.0",
+    "ruff>=0.1.14",
+{{- if .WithTypeCheck }}
+    "mypy>=1.8.0",
+{{- end }}
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B", "C90"]
+ignore = []
+{{- if .WithTypeCheck }}
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+{{- end }}
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

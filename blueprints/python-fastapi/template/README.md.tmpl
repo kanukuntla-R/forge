@@ -1,0 +1,94 @@
+# {{ .Name }}
+
+{{ .Description }}
+
+Generated with [forge](https://github.com/kanukuntla-r/forge) from the `python-fastapi` blueprint.
+{{ if or .WithDatabase .WithAuth }}
+> **Note**: Auth automatically enables database — auth requires user records in the database.
+{{ end }}
+## Getting started
+
+Install dependencies:
+
+```bash
+uv sync
+```
+
+Run the development server:
+
+```bash
+uv run fastapi dev src/main.py
+```
+
+Run tests:
+
+```bash
+uv run pytest
+```
+
+Lint:
+
+```bash
+uv run ruff check .
+```
+{{ if or .WithDatabase .WithAuth }}
+## Database setup
+
+This project uses PostgreSQL with SQLAlchemy (async) and Alembic migrations.
+
+1. Create the database:
+
+```bash
+createdb {{ .Name | replace "-" "_" }}
+```
+
+2. Run migrations:
+
+```bash
+uv run alembic upgrade head
+```
+
+Copy `.env.example` to `.env` if you need to customize `DATABASE_URL`.
+{{ end }}
+{{ if .WithDocker }}
+## Docker
+{{ if or .WithDatabase .WithAuth }}
+Start the API and database:
+{{ else }}
+Start the API:
+{{ end }}
+```bash
+docker compose up
+```
+{{ end }}
+{{ if .WithOpenai }}
+## AI / LLM
+
+Set your API keys in `.env`:
+
+```
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+The `/chat` endpoint uses `gpt-4` by default. Change the model in `src/routes/chat.py`.
+{{ end }}
+{{ if .WithTypeCheck }}
+## Type checking
+
+```bash
+uv run mypy src/
+```
+{{ end }}
+## Project structure
+
+```
+src/
+├── main.py          FastAPI app entry point
+├── config.py        Pydantic settings (reads from .env)
+└── routes/
+    ├── health.py    GET /health{{ if .WithDatabase }}
+    ├── users.py     CRUD  GET/POST /users{{ end }}{{ if .WithAuth }}
+    ├── auth.py      POST /auth/register, /auth/login{{ end }}{{ if .WithOpenai }}
+    └── chat.py      POST /chat{{ end }}
+```

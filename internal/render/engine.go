@@ -3,6 +3,7 @@ package render
 import (
 	"bytes"
 	"io"
+	"strings"
 	"text/template"
 )
 
@@ -36,6 +37,11 @@ func RenderFile(name string, r io.Reader, ctx map[string]any) (string, error) {
 
 // forgeFuncMap holds the custom functions available in all forge templates.
 var forgeFuncMap = template.FuncMap{
+	// replace(old, new, s) replaces all occurrences of old with new in s.
+	// In templates: {{ .Name | replace "-" "_" }}
+	"replace": func(old, new, s string) string {
+		return strings.ReplaceAll(s, old, new)
+	},
 	// seq returns [start, start+1, ..., end] inclusive, useful in graph.yaml for_each loops.
 	"seq": func(start, end int) []int {
 		if end < start {

@@ -1,0 +1,23 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    app_name: str = "{{ .Name }}"
+    debug: bool = False
+{{- if or .WithDatabase .WithAuth }}
+    database_url: str = "postgresql+asyncpg://localhost/{{ .Name | replace "-" "_" }}"
+{{- end }}
+{{- if .WithAuth }}
+    secret_key: str = "change-me-in-production"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+{{- end }}
+{{- if .WithOpenai }}
+    openai_api_key: str = ""
+    anthropic_api_key: str = ""
+{{- end }}
+
+
+settings = Settings()

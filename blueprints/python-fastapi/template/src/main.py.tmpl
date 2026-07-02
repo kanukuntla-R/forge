@@ -1,0 +1,40 @@
+from fastapi import FastAPI
+
+from src.config import settings
+from src.routes import health
+{{- if or .WithDatabase .WithAuth }}
+from src.database import init_db
+{{- end }}
+{{- if .WithDatabase }}
+from src.routes import users
+{{- end }}
+{{- if .WithAuth }}
+from src.routes import auth
+{{- end }}
+{{- if .WithOpenai }}
+from src.routes import chat
+{{- end }}
+
+app = FastAPI(
+    title="{{ .Name }}",
+    description="{{ .Description }}",
+    version="0.1.0",
+)
+
+app.include_router(health.router)
+{{- if .WithDatabase }}
+app.include_router(users.router, prefix="/users", tags=["users"])
+{{- end }}
+{{- if .WithAuth }}
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+{{- end }}
+{{- if .WithOpenai }}
+app.include_router(chat.router, prefix="/chat", tags=["chat"])
+{{- end }}
+{{- if or .WithDatabase .WithAuth }}
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    await init_db()
+{{- end }}

@@ -1,0 +1,55 @@
+name: python-fastapi
+display_name: "Python FastAPI"
+description: "Minimal FastAPI starter with async support, uv, Ruff, and feature toggles."
+version: "0.1.0"
+authors: ["kanukuntla-r"]
+
+kind: app
+
+stack:
+  language: python
+  framework: fastapi
+  tags: [python, fastapi, async, api]
+
+variables:
+  - name: description
+    prompt: "Short description of your API"
+    type: string
+    default: "A FastAPI application"
+
+  - name: with_database
+    prompt: "Include database (PostgreSQL + SQLAlchemy + Alembic)?"
+    type: bool
+    default: false
+
+  - name: with_auth
+    prompt: "Include authentication (JWT + bcrypt)? Automatically enables database."
+    type: bool
+    default: false
+
+  - name: with_docker
+    prompt: "Include Docker configuration?"
+    type: bool
+    default: false
+
+  - name: with_openai
+    prompt: "Include OpenAI/Anthropic SDK + /chat endpoint?"
+    type: bool
+    default: false
+
+  - name: with_type_check
+    prompt: "Include mypy type checking?"
+    type: bool
+    default: false
+
+target:
+  default_path: "./{{ .Name }}"
+
+post_create:
+  - name: "Install dependencies"
+    shell: "uv sync"
+    optional: false
+
+  - name: "Initialize git"
+    shell: "git init && git add -A && git commit -m 'Initial commit from forge python-fastapi blueprint'"
+    optional: true
