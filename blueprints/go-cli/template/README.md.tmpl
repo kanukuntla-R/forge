@@ -1,0 +1,95 @@
+# {{ .Name }}
+
+{{ .Description }}
+
+Generated with [forge](https://github.com/kanukuntla-r/forge) from the `go-cli` blueprint.
+
+## Getting started
+
+Download dependencies and build:
+
+```bash
+go mod tidy
+make build
+```
+
+Run the CLI:
+
+```bash
+./{{ .Name }} hello --name World
+# Hello, World!
+
+./{{ .Name }} hello --name World --shout
+# HELLO, WORLD!
+```
+
+Run tests:
+
+```bash
+make test
+```
+
+Install to `~/.local/bin`:
+
+```bash
+make install
+```
+
+Check version:
+
+```bash
+./{{ .Name }} --version
+```
+
+## Adding a new command
+
+1. Create `cmd/<command_name>.go`:
+
+```go
+package cmd
+
+import (
+    "fmt"
+    "github.com/spf13/cobra"
+)
+
+var myCmd = &cobra.Command{
+    Use:   "mycommand",
+    Short: "Do something",
+    RunE: func(cmd *cobra.Command, args []string) error {
+        fmt.Println("Hello from mycommand")
+        return nil
+    },
+}
+
+func init() {
+    rootCmd.AddCommand(myCmd)
+}
+```
+
+2. That's it — `init()` wires it up automatically.
+
+## Project structure
+
+```
+main.go                 Entry point; passes version to cmd.Execute
+cmd/
+├── root.go             Root cobra command and Execute() function
+└── hello.go            Example subcommand with --name and --shout
+internal/
+└── logger/
+    └── logger.go       Preconfigured slog JSON logger (opt-in)
+```
+
+## Enabling structured logging
+
+Call `logger.Setup(false)` from `main()` to switch slog to JSON format on stderr:
+
+```go
+import "{{ .ModulePath }}/internal/logger"
+
+func main() {
+    logger.Setup(false)  // pass true for debug-level output
+    cmd.Execute(Version)
+}
+```

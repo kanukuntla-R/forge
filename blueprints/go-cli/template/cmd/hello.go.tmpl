@@ -1,0 +1,34 @@
+package cmd
+
+import (
+	"fmt"
+	"log/slog"
+	"strings"
+
+	"github.com/spf13/cobra"
+)
+
+var helloCmd = &cobra.Command{
+	Use:   "hello",
+	Short: "Say hello to someone",
+	Long:  "Say hello to someone. Use --name to specify who to greet.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name, _ := cmd.Flags().GetString("name")
+		shout, _ := cmd.Flags().GetBool("shout")
+
+		greeting := fmt.Sprintf("Hello, %s!", name)
+		if shout {
+			greeting = strings.ToUpper(greeting)
+		}
+
+		slog.Info("greeting", "name", name, "shouted", shout)
+		fmt.Println(greeting)
+		return nil
+	},
+}
+
+func init() {
+	helloCmd.Flags().StringP("name", "n", "World", "Person to greet")
+	helloCmd.Flags().Bool("shout", false, "Shout the greeting")
+	rootCmd.AddCommand(helloCmd)
+}

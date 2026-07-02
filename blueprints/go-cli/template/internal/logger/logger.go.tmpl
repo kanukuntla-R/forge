@@ -1,0 +1,21 @@
+// Package logger provides a preconfigured slog logger for the CLI.
+package logger
+
+import (
+	"log/slog"
+	"os"
+)
+
+// Setup configures the default slog logger with JSON output to stderr.
+// Call this from main() before running the CLI.
+func Setup(debug bool) {
+	level := slog.LevelInfo
+	if debug {
+		level = slog.LevelDebug
+	}
+
+	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: level,
+	})
+	slog.SetDefault(slog.New(handler))
+}

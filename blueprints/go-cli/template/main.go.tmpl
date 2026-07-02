@@ -1,0 +1,10 @@
+package main
+
+import "{{ .ModulePath }}/cmd"
+
+// Version is set at build time via -ldflags "-X main.Version=<tag>".
+var Version = "dev"
+
+func main() {
+	cmd.Execute(Version)
+}

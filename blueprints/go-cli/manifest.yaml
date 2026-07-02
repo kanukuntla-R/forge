@@ -1,0 +1,38 @@
+name: go-cli
+display_name: "Go CLI"
+description: "Minimal Go CLI starter with cobra and slog."
+version: "0.1.0"
+authors: ["kanukuntla-r"]
+
+kind: app
+
+stack:
+  language: go
+  framework: cobra
+  tags: [go, cli, cobra]
+
+variables:
+  - name: module_path
+    prompt: "Go module path (e.g., github.com/username/project-name)"
+    type: string
+
+  - name: description
+    prompt: "Short description of your CLI"
+    type: string
+    default: "A Go CLI tool"
+
+target:
+  default_path: "./{{ .Name }}"
+
+post_create:
+  - name: "Download dependencies"
+    shell: "go mod tidy"
+    optional: false
+
+  - name: "Build binary"
+    shell: "go build ."
+    optional: true
+
+  - name: "Initialize git"
+    shell: "git init && git add -A && git commit -m 'Initial commit from forge go-cli blueprint'"
+    optional: true

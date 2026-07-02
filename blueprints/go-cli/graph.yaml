@@ -1,0 +1,28 @@
+version: "1"
+project:
+  name: "{{ .Name }}"
+  description: "{{ .Description }}"
+nodes:
+  - id: main
+    type: entry
+    label: main.go
+    path: main.go
+  - id: root
+    type: command
+    label: root
+    path: cmd/root.go
+  - id: hello
+    type: command
+    label: hello
+    path: cmd/hello.go
+  - id: logger
+    type: infrastructure
+    label: logger
+    path: internal/logger/logger.go
+edges:
+  - from: main
+    to: root
+    type: calls
+  - from: root
+    to: hello
+    type: registers
