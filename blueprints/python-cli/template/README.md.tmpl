@@ -1,0 +1,67 @@
+# {{ .Name }}
+
+{{ .Description }}
+
+Generated with [forge](https://github.com/kanukuntla-r/forge) from the `python-cli` blueprint.
+
+## Getting started
+
+Install dependencies:
+
+```bash
+uv sync --extra dev
+```
+
+Run the CLI:
+
+```bash
+# Via module
+uv run python -m src.main hello --name World
+
+# Via installed entry point
+uv run {{ .Name | replace "-" "_" }} hello --name World
+```
+
+Run tests:
+
+```bash
+uv run pytest
+```
+
+Lint:
+
+```bash
+uv run ruff check .
+```
+
+## Adding a new command
+
+1. Create `src/commands/<command_name>.py`:
+
+```python
+import typer
+
+def my_command(
+    name: str = typer.Option("World", "--name", "-n", help="Input value"),
+) -> None:
+    """Command description."""
+    typer.echo(f"Hello, {name}!")
+```
+
+2. Register in `src/main.py`:
+
+```python
+from src.commands import my_command
+app.command()(my_command.my_command)
+```
+
+## Project structure
+
+```
+src/
+├── main.py               Typer app entry point
+└── commands/
+    └── hello.py          Example command (hello)
+tests/
+└── test_hello.py         Tests using Typer's CliRunner
+```

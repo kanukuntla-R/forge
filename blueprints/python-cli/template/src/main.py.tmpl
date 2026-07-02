@@ -1,0 +1,21 @@
+import typer
+
+from src.commands import hello
+
+app = typer.Typer(
+    name="{{ .Name }}",
+    help="{{ .Description }}",
+    no_args_is_help=True,
+)
+
+
+@app.callback()
+def _main() -> None:
+    """{{ .Description }}"""
+
+
+app.command()(hello.hello)
+
+
+if __name__ == "__main__":
+    app()

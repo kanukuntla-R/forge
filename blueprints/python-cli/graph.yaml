@@ -1,0 +1,21 @@
+version: "1"
+project:
+  name: "{{ .Name }}"
+  description: "{{ .Description }}"
+nodes:
+  - id: main
+    type: entry
+    label: main.py
+    path: src/main.py
+  - id: hello-command
+    type: command
+    label: hello
+    path: src/commands/hello.py
+  - id: pyproject
+    type: config
+    label: pyproject.toml
+    path: pyproject.toml
+edges:
+  - from: main
+    to: hello-command
+    type: registers

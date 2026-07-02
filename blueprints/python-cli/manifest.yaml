@@ -1,0 +1,30 @@
+name: python-cli
+display_name: "Python CLI"
+description: "Minimal Python CLI starter with Typer, uv, and Ruff."
+version: "0.1.0"
+authors: ["kanukuntla-r"]
+
+kind: app
+
+stack:
+  language: python
+  framework: typer
+  tags: [python, cli, typer]
+
+variables:
+  - name: description
+    prompt: "Short description of your CLI"
+    type: string
+    default: "A Python CLI tool"
+
+target:
+  default_path: "./{{ .Name }}"
+
+post_create:
+  - name: "Install dependencies"
+    shell: "uv sync --extra dev"
+    optional: false
+
+  - name: "Initialize git"
+    shell: "git init && git add -A && git commit -m 'Initial commit from forge python-cli blueprint'"
+    optional: true
