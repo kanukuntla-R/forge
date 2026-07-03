@@ -11,6 +11,7 @@ type Registry struct {
 func NewRegistry() *Registry {
 	r := &Registry{basic: basicAdapter{}}
 	r.Register(newTypescriptAdapter())
+	r.Register(newPythonAdapter())
 	return r
 }
 
