@@ -111,6 +111,27 @@ func TestWalkUsesPythonAdapter(t *testing.T) {
 	}
 }
 
+func TestPythonAdapter_DeclarationsFlowThrough(t *testing.T) {
+	a := analyzer.NewPythonAdapter()
+	src := "app = FastAPI()\n\n@app.get(\"/health\")\ndef health():\n    return {}\n"
+	result, err := a.Analyze("app.py", []byte(src))
+	if err != nil {
+		t.Fatalf("Analyze: %v", err)
+	}
+	if len(result.Declarations) != 2 {
+		t.Fatalf("want 2 declarations, got %d: %+v", len(result.Declarations), result.Declarations)
+	}
+	if result.Declarations[0].Type != "variable" || result.Declarations[0].Name != "app" {
+		t.Errorf("decl 0: want variable app, got %s %s", result.Declarations[0].Type, result.Declarations[0].Name)
+	}
+	if result.Declarations[1].Type != "function" || result.Declarations[1].Name != "health" {
+		t.Errorf("decl 1: want function health, got %s %s", result.Declarations[1].Type, result.Declarations[1].Name)
+	}
+	if len(result.Declarations[1].Decorators) != 1 {
+		t.Errorf("health.decorators: want 1, got %v", result.Declarations[1].Decorators)
+	}
+}
+
 func TestWalkPythonImportsPopulated(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "app.py", "import os\nfrom fastapi import FastAPI\nfrom .config import settings\n")

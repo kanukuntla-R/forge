@@ -38,9 +38,12 @@ type Export struct {
 
 // Declaration represents a top-level declaration (function, class, etc.)
 type Declaration struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-	Line int    `json:"line"`
+	Name       string   `json:"name"`
+	Type       string   `json:"type"`
+	Line       int      `json:"line"`
+	Decorators []string `json:"decorators,omitempty"` // Python: decorator expressions (without leading @)
+	Bases      []string `json:"bases,omitempty"`      // Python: base class names for class declarations
+	ValueRepr  string   `json:"value_repr,omitempty"` // Python: truncated RHS for variable declarations
 }
 
 // Call represents a function/API call extracted from the source.

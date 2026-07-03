@@ -74,6 +74,18 @@ func (n *Node) NamedChild(i int) *Node {
 	return &Node{node: child, source: n.source}
 }
 
+// HasAsyncKeyword reports whether this function_definition node begins with
+// the async keyword. In tree-sitter-python, async is an anonymous (unnamed)
+// child at position 0 — it has no grammar field name, so positional Child(0)
+// is the only way to detect it.
+func (n *Node) HasAsyncKeyword() bool {
+	if n.node.ChildCount() == 0 {
+		return false
+	}
+	first := n.node.Child(0)
+	return first != nil && first.Type() == "async"
+}
+
 // Language returns the tree-sitter Language for Python.
 // Used by detectors that need to run tree-sitter queries.
 func Language() *sitter.Language {

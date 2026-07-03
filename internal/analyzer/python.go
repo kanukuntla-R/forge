@@ -48,10 +48,23 @@ func (a *pythonAdapter) Analyze(_ string, content []byte) (*FileAnalysis, error)
 		}
 	}
 
+	rawDecls := tree.Declarations()
+	decls := make([]Declaration, len(rawDecls))
+	for i, d := range rawDecls {
+		decls[i] = Declaration{
+			Name:       d.Name,
+			Type:       d.Kind,
+			Line:       d.Line,
+			Decorators: d.Decorators,
+			Bases:      d.Bases,
+			ValueRepr:  d.ValueRepr,
+		}
+	}
+
 	return &FileAnalysis{
 		Imports:      imports,
 		Exports:      []Export{},
-		Declarations: []Declaration{},
+		Declarations: decls,
 		Calls:        []Call{},
 	}, nil
 }
