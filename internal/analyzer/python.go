@@ -29,11 +29,29 @@ func (a *pythonAdapter) Detect(path string, _ []byte) bool {
 }
 
 func (a *pythonAdapter) Analyze(_ string, content []byte) (*FileAnalysis, error) {
-	// M10.1: verify parse succeeds. Extraction (imports, declarations, calls) comes in M10.2–M10.3.
-	if _, err := a.parser.Parse(content); err != nil {
-		// tree-sitter rarely errors on broken syntax (it's resilient).
-		// A real error here means something is wrong with the parser setup.
+	tree, err := a.parser.Parse(content)
+	if err != nil {
 		return &FileAnalysis{}, nil
 	}
-	return &FileAnalysis{}, nil
+
+	rawImports := tree.Imports()
+	imports := make([]Import, len(rawImports))
+	for i, imp := range rawImports {
+		imports[i] = Import{
+			Source:     imp.Source,
+			Names:      imp.Names,
+			Alias:      imp.Alias,
+			IsRelative: imp.IsRelative,
+			IsStar:     imp.IsStar,
+			External:   imp.External,
+			Line:       imp.Line,
+		}
+	}
+
+	return &FileAnalysis{
+		Imports:      imports,
+		Exports:      []Export{},
+		Declarations: []Declaration{},
+		Calls:        []Call{},
+	}, nil
 }

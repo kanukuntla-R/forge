@@ -19,11 +19,14 @@ type FileAnalysis struct {
 
 // Import represents a module import.
 type Import struct {
-	Source   string   `json:"source"`
-	Resolved string   `json:"resolved,omitempty"`
-	Names    []string `json:"names"`            // no omitempty: [] is meaningful for side-effect imports
-	External bool     `json:"external,omitempty"`
-	Line     int      `json:"line,omitempty"`
+	Source     string   `json:"source"`
+	Resolved   string   `json:"resolved,omitempty"`
+	Names      []string `json:"names"`            // no omitempty: [] is meaningful for side-effect imports
+	Alias      string   `json:"alias,omitempty"`  // set for `import X as Y` (top-level alias only)
+	IsRelative bool     `json:"is_relative,omitempty"` // true for Python relative imports (from . / from .. )
+	IsStar     bool     `json:"is_star,omitempty"`     // true for `from X import *`
+	External   bool     `json:"external,omitempty"`
+	Line       int      `json:"line,omitempty"`
 }
 
 // Export represents a module export.

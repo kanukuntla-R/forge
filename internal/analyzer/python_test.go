@@ -55,6 +55,45 @@ func TestPythonAdapter_AnalyzeBrokenSyntax(t *testing.T) {
 	}
 }
 
+func TestPythonAdapter_ImportsFlowThrough(t *testing.T) {
+	a := analyzer.NewPythonAdapter()
+	src := "import os\nfrom fastapi import FastAPI\nfrom .config import settings\n"
+	result, err := a.Analyze("app.py", []byte(src))
+	if err != nil {
+		t.Fatalf("Analyze: %v", err)
+	}
+	if len(result.Imports) != 3 {
+		t.Fatalf("want 3 imports, got %d: %+v", len(result.Imports), result.Imports)
+	}
+
+	// import os
+	if result.Imports[0].Source != "os" {
+		t.Errorf("import 0 source: want %q, got %q", "os", result.Imports[0].Source)
+	}
+	if !result.Imports[0].External {
+		t.Errorf("import 0: want external=true")
+	}
+
+	// from fastapi import FastAPI
+	if result.Imports[1].Source != "fastapi" {
+		t.Errorf("import 1 source: want %q, got %q", "fastapi", result.Imports[1].Source)
+	}
+	if len(result.Imports[1].Names) != 1 || result.Imports[1].Names[0] != "FastAPI" {
+		t.Errorf("import 1 names: want [FastAPI], got %v", result.Imports[1].Names)
+	}
+
+	// from .config import settings
+	if result.Imports[2].Source != ".config" {
+		t.Errorf("import 2 source: want %q, got %q", ".config", result.Imports[2].Source)
+	}
+	if !result.Imports[2].IsRelative {
+		t.Errorf("import 2: want is_relative=true")
+	}
+	if result.Imports[2].External {
+		t.Errorf("import 2: want external=false")
+	}
+}
+
 func TestWalkUsesPythonAdapter(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "app.py", "def hello():\n    return 'world'\n")
@@ -69,5 +108,29 @@ func TestWalkUsesPythonAdapter(t *testing.T) {
 	}
 	if got := result.Analysis.Files[0].Language; got != "python" {
 		t.Errorf("app.py: want language=python, got %q", got)
+	}
+}
+
+func TestWalkPythonImportsPopulated(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.py", "import os\nfrom fastapi import FastAPI\nfrom .config import settings\n")
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if len(result.Analysis.Files) != 1 {
+		t.Fatalf("want 1 file, got %d", len(result.Analysis.Files))
+	}
+	f := result.Analysis.Files[0]
+	if f.Language != "python" {
+		t.Fatalf("want language=python, got %q", f.Language)
+	}
+	if len(f.Imports) != 3 {
+		t.Fatalf("want 3 imports in walk result, got %d: %+v", len(f.Imports), f.Imports)
+	}
+	if f.Imports[2].IsRelative != true {
+		t.Errorf("third import: want is_relative=true")
 	}
 }

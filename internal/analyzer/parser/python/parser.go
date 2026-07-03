@@ -32,15 +32,46 @@ func (p *Parser) Parse(content []byte) (*Tree, error) {
 }
 
 // Tree wraps a tree-sitter tree and the source bytes.
-// Future chunks will add query methods for import and declaration extraction.
 type Tree struct {
 	tree   *sitter.Tree
 	source []byte
 }
 
-// RootNode returns the root node of the parsed tree.
-func (t *Tree) RootNode() *sitter.Node {
-	return t.tree.RootNode()
+// RootNode returns the root node of the parsed tree as a Node.
+func (t *Tree) RootNode() *Node {
+	n := t.tree.RootNode()
+	if n == nil {
+		return nil
+	}
+	return &Node{node: n, source: t.source}
+}
+
+// Node wraps a tree-sitter node and the source bytes so callers can call
+// Content() without threading the source slice through every helper function.
+type Node struct {
+	node   *sitter.Node
+	source []byte
+}
+
+// Type returns the grammar node type (e.g. "import_statement", "dotted_name").
+func (n *Node) Type() string { return n.node.Type() }
+
+// Content returns the source text corresponding to this node.
+func (n *Node) Content() string { return n.node.Content(n.source) }
+
+// StartLine returns the 1-indexed line number where this node begins.
+func (n *Node) StartLine() int { return int(n.node.StartPoint().Row) + 1 }
+
+// NamedChildCount returns the number of named children.
+func (n *Node) NamedChildCount() int { return int(n.node.NamedChildCount()) }
+
+// NamedChild returns the i-th named child, or nil if out of range.
+func (n *Node) NamedChild(i int) *Node {
+	child := n.node.NamedChild(i)
+	if child == nil {
+		return nil
+	}
+	return &Node{node: child, source: n.source}
 }
 
 // Language returns the tree-sitter Language for Python.
