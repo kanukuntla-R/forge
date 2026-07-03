@@ -1,7 +1,7 @@
 # Variables
 BINARY   := forge
 DIST_DIR := dist
-VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo "unknown")
+VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo "unknown")
 LDFLAGS  := -ldflags "-X github.com/kanukuntla-r/forge.Version=$(VERSION)"
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 

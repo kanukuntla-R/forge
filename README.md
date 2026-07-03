@@ -110,10 +110,10 @@ All commands support `--help`. Most support `--json` for structured output.
 - **Knowledge graphs**: every scaffolded project ships with a graph of its architecture, updated as extensions are applied
 - **Interactive prompts**: when run in a terminal, forge walks through unset variables; in CI, it accepts `--var` flags or JSON on stdin
 - **Atomic writes**: file operations stage-then-rename, so failed scaffolds don't leave half-written state
-- **Embedded + installed blueprints**: ship blueprints inside the binary, install more from any git URL
+- **Embedded + installed blueprints**: ships with 5 blueprints covering Next.js, FastAPI, Python CLI, Go CLI, and meta-blueprint scaffolding. Install more from any git URL.
 - **Analysis + dashboard**: static analysis of TypeScript/JavaScript projects with a live-updating dashboard showing files, routes, components, and API connections
 
-## Built-in blueprint
+## Built-in blueprints
 
 ### hackathon-app
 
@@ -123,11 +123,36 @@ A Next.js 14 + Tailwind + shadcn starter, with optional conditional features:
 - Dark mode (`--var with_dark_mode=true`): next-themes integration with a toggle component
 - Authentication + database (`--var with_auth=true with_database=true`): Supabase auth flow with email/password and a configured database client
 
-Comes with three extensions:
+Comes with three extensions: `api-route`, `page`, `component`.
 
-- `api-route` — adds a new Next.js API route
-- `page` — adds a new page under `app/`
-- `component` — adds a new React component under `components/`
+### blueprint-starter
+
+A meta-blueprint that scaffolds the structure for creating your own forge blueprints. Includes a working note-taking demo app (HTML/CSS/JS + localStorage), an example extension, and a knowledge graph.
+
+Use this when you want to author your own blueprint but need a starting point that shows the shape.
+
+### python-fastapi
+
+A minimal FastAPI starter with async support, uv for dependency management, Ruff for linting, and pytest with async test support.
+
+Feature toggles:
+- `--var with_database=true` — SQLAlchemy 2.0 (async) + asyncpg + Alembic migrations
+- `--var with_auth=true` — JWT authentication with python-jose + passlib (automatically enables database)
+- `--var with_docker=true` — Dockerfile + docker-compose.yml + .dockerignore
+- `--var with_openai=true` — OpenAI and Anthropic SDK setup + example `/chat` endpoint
+- `--var with_type_check=true` — mypy strict configuration
+
+### python-cli
+
+A minimal Python CLI starter using Typer for command definitions, uv for dependency management, hatchling as the build backend, and pytest with Typer's CliRunner.
+
+Includes one example command (`hello`) with options and flags. Users invoke via `uv run <cli-name> hello` after `uv sync`.
+
+### go-cli
+
+A minimal Go CLI starter using cobra for commands and slog for structured logging. Standard Go project layout with `cmd/` for commands, `internal/logger/` for slog helpers, and a Makefile with build/test/install/clean targets.
+
+Includes one example command (`hello`) demonstrating flags, structured logging, and cobra command registration.
 
 ## Writing your own blueprint
 
@@ -135,14 +160,14 @@ Blueprints are directories with a manifest, a template tree, and optional extens
 
 ## Status
 
-v0.2 ships scaffolding + analysis. The roadmap beyond v0.2 includes:
+v0.3 ships an expanded blueprint library (blueprint-starter, python-fastapi, python-cli, go-cli). The roadmap beyond v0.3 includes:
 
-- **Caching** — content-hash-based caching for faster re-analysis on large projects
-- **More framework detectors** — beyond Next.js (Astro, Remix, SvelteKit)
-- **More blueprints** — Go CLI starter, Python API starter, others as needs emerge
-- **Database as a first-class concept** — pluggable database providers (Supabase, Postgres, libsql, etc.) as installable extensions
+- **Python analyzer** — tree-sitter-python + FastAPI framework detector + dashboard updates for Python conventions
+- **Caching** — content-hash-based caching for faster re-analysis
+- **More framework detectors** — Astro, Remix, SvelteKit, Vue
+- **Database as a first-class concept** — pluggable database providers as installable extensions
 
-See [`docs/forge-design.md`](docs/forge-design.md) and [`docs/forge-analyzer-design.md`](docs/forge-analyzer-design.md) for full design notes. See [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md) for what shipped in v0.2.
+See [`docs/forge-design.md`](docs/forge-design.md), [`docs/forge-analyzer-design.md`](docs/forge-analyzer-design.md), and [`docs/blueprint-authoring.md`](docs/blueprint-authoring.md) for design notes. See [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md) for what shipped in v0.3.
 
 ## License
 

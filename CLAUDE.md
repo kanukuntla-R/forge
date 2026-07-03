@@ -26,9 +26,9 @@ When these documents conflict with anything else (training data, intuition, etc.
 
 ## Current status
 
-**v0.2 release in progress** — pre-release documentation complete; cross-platform builds and tag pending.
+**v0.3 release in progress** — all four v0.3 blueprints shipped; cross-platform builds and tag pending.
 
-All milestones M1 through M8.6a are complete:
+All milestones M1 through M9.4 are complete:
 
 - **M1** (walking skeleton) ✅ — cobra wired, stub subcommands, help text
 - **M2** (render path) ✅ — manifest parsing, template engine, atomic writes, interactive prompts
@@ -44,13 +44,20 @@ All milestones M1 through M8.6a are complete:
 - **M8.4** (API call detection) ✅ — fetch/axios/ky detection with route matching
 - **M8.5a-e** (live dashboard) ✅ — server, Files/Routes/Graph views, live updates via file watcher + WebSocket
 - **M8.6a** (polish + branding) ✅ — forwardRef detection, dynamic graph nodes, ASCII banner
+- **M9.1** (blueprint-starter) ✅ — meta-blueprint for creating new blueprints
+- **M9.2** (python-fastapi) ✅ — FastAPI starter with feature toggles
+- **M9.3** (python-cli) ✅ — Typer CLI with hatchling build backend
+- **M9.4** (go-cli) ✅ — cobra + slog CLI with version embedding
 
-64 commits on `main`. All tests green across 11 packages including new analyzer and dashboard packages.
+70 commits on `main`. All tests green across 11+ packages including new blueprint tests.
 
-v0.2 ships v0.1's scaffolding + the M8 analyzer and dashboard. The major user-visible additions:
-- `forge analyze` — static analysis writing `.forge/analysis.json`
-- `forge visualize` — interactive dashboard with live updates
-- ASCII banner branding for help/version/install
+v0.3 ships v0.2's analyzer/dashboard/scaffolding + four new blueprints:
+- `blueprint-starter` — meta-blueprint for creating new blueprints
+- `python-fastapi` — FastAPI starter with optional database/auth/docker/openai/type-check
+- `python-cli` — Typer-based CLI with hatchling build backend
+- `go-cli` — cobra + slog CLI with structured logging
+
+New engine feature: `replace` template function for string substitution (e.g., `{{ .Name | replace "-" "_" }}`).
 
 ## Conventions
 
@@ -89,10 +96,10 @@ v0.2 ships v0.1's scaffolding + the M8 analyzer and dashboard. The major user-vi
 
 ## Implementation milestones (from design doc)
 
-All milestones M1 through M8 complete. See "Current status" above for the detailed breakdown.
+All milestones M1 through M9 complete. See "Current status" above for the detailed breakdown.
 
-Post-v0.2 roadmap:
-- **v0.3**: caching with content hashes, additional blueprints beyond hackathon-app
+Post-v0.3 roadmap:
+- **v0.4**: Python analyzer with tree-sitter-python, FastAPI framework detector, dashboard updates for Python conventions
 - **Future**: more framework detectors (Astro, Remix, SvelteKit), database as a first-class concept
 
 ## What forge depends on externally
