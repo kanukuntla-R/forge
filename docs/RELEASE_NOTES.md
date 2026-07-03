@@ -2,7 +2,7 @@
 
 ## v0.3.0 — Blueprint expansion
 
-Released: [date when actually tagged]
+Released: 2026-07-03
 
 Four new blueprints for common project types. The blueprint library now covers Next.js, FastAPI, Python CLI, Go CLI, and meta-blueprint scaffolding.
 
