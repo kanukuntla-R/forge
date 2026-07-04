@@ -153,6 +153,83 @@ func TestPythonAdapter_ModuleCallsFlowThrough(t *testing.T) {
 	}
 }
 
+func TestPythonAdapter_APICallsFlowThrough(t *testing.T) {
+	a := analyzer.NewPythonAdapter()
+	result, err := a.Analyze("client.py", []byte(`requests.get("/api/users")`))
+	if err != nil {
+		t.Fatalf("Analyze: %v", err)
+	}
+	if len(result.Calls) != 1 {
+		t.Fatalf("want 1 call, got %d: %+v", len(result.Calls), result.Calls)
+	}
+	c := result.Calls[0]
+	if c.Target != "/api/users" || c.Method != "GET" || c.Library != "requests" || c.Kind != "requests" {
+		t.Errorf("call: got %+v", c)
+	}
+	if c.Confidence != "high" {
+		t.Errorf("confidence: want high, got %q", c.Confidence)
+	}
+}
+
+func TestWalkSkipsAPICallsInTestFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "test_client.py", `requests.get("/api/users")`+"\n")
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if len(result.Analysis.Files) != 1 {
+		t.Fatalf("want 1 file, got %d", len(result.Analysis.Files))
+	}
+	if len(result.Analysis.Files[0].Calls) != 0 {
+		t.Errorf("want 0 calls in test_*.py file, got %d: %+v", len(result.Analysis.Files[0].Calls), result.Analysis.Files[0].Calls)
+	}
+}
+
+func TestWalkSkipsAPICallsInUnderscoreTestFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "client_test.py", `requests.get("/api/users")`+"\n")
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if len(result.Analysis.Files[0].Calls) != 0 {
+		t.Errorf("want 0 calls in *_test.py file, got %d", len(result.Analysis.Files[0].Calls))
+	}
+}
+
+func TestWalkSkipsAPICallsInTestsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "tests/conftest.py", `requests.get("/api/users")`+"\n")
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if len(result.Analysis.Files[0].Calls) != 0 {
+		t.Errorf("want 0 calls in tests/ directory file, got %d", len(result.Analysis.Files[0].Calls))
+	}
+}
+
+func TestWalkKeepsAPICallsInNonTestFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "client.py", `requests.get("/api/users")`+"\n")
+
+	reg := analyzer.NewRegistry()
+	result, err := analyzer.Walk(dir, reg)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if len(result.Analysis.Files[0].Calls) != 1 {
+		t.Errorf("want 1 call in non-test file, got %d", len(result.Analysis.Files[0].Calls))
+	}
+}
+
 func TestWalkPythonImportsPopulated(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "app.py", "import os\nfrom fastapi import FastAPI\nfrom .config import settings\n")

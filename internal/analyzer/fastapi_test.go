@@ -597,3 +597,109 @@ func TestRealisticFastAPIProject(t *testing.T) {
 		}
 	}
 }
+
+// ── API call route matching ──────────────────────────────────────────────────
+
+func httpCall(target, method, library, confidence string) analyzer.Call {
+	return analyzer.Call{Target: target, Method: method, Kind: library, Library: library, Confidence: confidence, Line: 1}
+}
+
+func TestMatchSimplePath(t *testing.T) {
+	files := []analyzer.FileInfo{
+		pyFile("server.py", fastapiImport(), []analyzer.Declaration{
+			{Name: "app", Type: "variable", Line: 1, ValueRepr: "FastAPI()"},
+			{Name: "list_users", Type: "function", Line: 3, Decorators: []string{`app.get("/api/users")`}},
+		}, nil),
+		{Path: "client.py", Language: "python", Calls: []analyzer.Call{httpCall("/api/users", "GET", "requests", "high")}},
+	}
+	info := enrichFastAPI(t, files)
+	if len(info.APICalls) != 1 {
+		t.Fatalf("want 1 api call, got %d: %+v", len(info.APICalls), info.APICalls)
+	}
+	if info.APICalls[0].ToRoute != "/api/users" || info.APICalls[0].ToFile != "server.py" {
+		t.Errorf("want matched to /api/users in server.py, got %+v", info.APICalls[0])
+	}
+}
+
+func TestMatchPathWithParam(t *testing.T) {
+	files := []analyzer.FileInfo{
+		pyFile("server.py", fastapiImport(), []analyzer.Declaration{
+			{Name: "app", Type: "variable", Line: 1, ValueRepr: "FastAPI()"},
+			{Name: "get_user", Type: "function", Line: 3, Decorators: []string{`app.get("/api/users/{user_id}")`}},
+		}, nil),
+		{Path: "client.py", Language: "python", Calls: []analyzer.Call{httpCall("/api/users/123", "GET", "requests", "high")}},
+	}
+	info := enrichFastAPI(t, files)
+	if len(info.APICalls) != 1 || info.APICalls[0].ToRoute != "/api/users/{user_id}" {
+		t.Fatalf("want matched to /api/users/{user_id}, got %+v", info.APICalls)
+	}
+}
+
+func TestNoMatchDifferentMethod(t *testing.T) {
+	files := []analyzer.FileInfo{
+		pyFile("server.py", fastapiImport(), []analyzer.Declaration{
+			{Name: "app", Type: "variable", Line: 1, ValueRepr: "FastAPI()"},
+			{Name: "list_users", Type: "function", Line: 3, Decorators: []string{`app.get("/api/users")`}},
+		}, nil),
+		{Path: "client.py", Language: "python", Calls: []analyzer.Call{httpCall("/api/users", "POST", "requests", "high")}},
+	}
+	info := enrichFastAPI(t, files)
+	if len(info.APICalls) != 1 || info.APICalls[0].ToRoute != "" {
+		t.Fatalf("want unmatched (method mismatch), got %+v", info.APICalls)
+	}
+}
+
+func TestNoMatchDifferentPath(t *testing.T) {
+	files := []analyzer.FileInfo{
+		pyFile("server.py", fastapiImport(), []analyzer.Declaration{
+			{Name: "app", Type: "variable", Line: 1, ValueRepr: "FastAPI()"},
+			{Name: "list_users", Type: "function", Line: 3, Decorators: []string{`app.get("/api/users")`}},
+		}, nil),
+		{Path: "client.py", Language: "python", Calls: []analyzer.Call{httpCall("/api/products", "GET", "requests", "high")}},
+	}
+	info := enrichFastAPI(t, files)
+	if len(info.APICalls) != 1 || info.APICalls[0].ToRoute != "" {
+		t.Fatalf("want unmatched (different path), got %+v", info.APICalls)
+	}
+}
+
+func TestNoMatchDifferentSegmentCount(t *testing.T) {
+	files := []analyzer.FileInfo{
+		pyFile("server.py", fastapiImport(), []analyzer.Declaration{
+			{Name: "app", Type: "variable", Line: 1, ValueRepr: "FastAPI()"},
+			{Name: "root", Type: "function", Line: 3, Decorators: []string{`app.get("/a")`}},
+		}, nil),
+		{Path: "client.py", Language: "python", Calls: []analyzer.Call{httpCall("/a/b", "GET", "requests", "high")}},
+	}
+	info := enrichFastAPI(t, files)
+	if len(info.APICalls) != 1 || info.APICalls[0].ToRoute != "" {
+		t.Fatalf("want unmatched (segment count mismatch), got %+v", info.APICalls)
+	}
+}
+
+func TestUnmatchedCallHasEmptyToRoute(t *testing.T) {
+	files := []analyzer.FileInfo{
+		pyFile("server.py", fastapiImport(), nil, nil),
+		{Path: "client.py", Language: "python", Calls: []analyzer.Call{httpCall("/nonexistent", "GET", "requests", "high")}},
+	}
+	info := enrichFastAPI(t, files)
+	if len(info.APICalls) != 1 || info.APICalls[0].ToRoute != "" || info.APICalls[0].ToFile != "" {
+		t.Fatalf("want unmatched call with empty ToRoute/ToFile, got %+v", info.APICalls)
+	}
+}
+
+func TestNonPythonCallsNotIncludedInAPICalls(t *testing.T) {
+	// TypeScript calls (Library unset) must not leak into FastAPI's api_calls.
+	files := []analyzer.FileInfo{
+		pyFile("server.py", fastapiImport(), []analyzer.Declaration{
+			{Name: "app", Type: "variable", Line: 1, ValueRepr: "FastAPI()"},
+		}, nil),
+		{Path: "frontend.ts", Language: "typescript", Calls: []analyzer.Call{
+			{Target: "/api/users", Method: "GET", Kind: "fetch", Confidence: "high", Line: 1},
+		}},
+	}
+	info := enrichFastAPI(t, files)
+	if len(info.APICalls) != 0 {
+		t.Errorf("want 0 api calls (TS call has no Library), got %d: %+v", len(info.APICalls), info.APICalls)
+	}
+}

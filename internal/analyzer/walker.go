@@ -60,6 +60,17 @@ func IsIgnoredDir(name string) bool {
 	return ignoreDirs[name]
 }
 
+// isPythonTestFile reports whether rel looks like a Python test file:
+// test_*.py, *_test.py, or anywhere under a tests/ directory.
+func isPythonTestFile(rel string) bool {
+	base := filepath.Base(rel)
+	if strings.HasPrefix(base, "test_") || strings.HasSuffix(base, "_test.py") {
+		return true
+	}
+	slashed := "/" + filepath.ToSlash(rel) + "/"
+	return strings.Contains(slashed, "/tests/")
+}
+
 // WalkResult holds the assembled analysis and any non-fatal per-file errors.
 type WalkResult struct {
 	Analysis *ProjectAnalysis
@@ -147,6 +158,14 @@ func Walk(projectRoot string, registry *Registry) (*WalkResult, error) {
 		if analyzeErr != nil {
 			result.Errors = append(result.Errors, fmt.Errorf("%s: analyze: %w", rel, analyzeErr))
 			fa = &FileAnalysis{}
+		}
+
+		// HTTP call detection is skipped for Python test files (test_*.py, *_test.py,
+		// or anywhere under a tests/ directory) — test traffic isn't production
+		// API usage. This must use rel (the relative path), not the absolute path
+		// Analyze() receives, so the check happens here rather than in the adapter.
+		if adapter.Name() == "python" && isPythonTestFile(rel) {
+			fa.Calls = nil
 		}
 
 		analysis.Files = append(analysis.Files, FileInfo{

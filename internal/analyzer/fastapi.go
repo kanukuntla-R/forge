@@ -9,9 +9,23 @@ import (
 
 // FastAPIAnalysis holds all FastAPI structural data extracted from the analysis.
 type FastAPIAnalysis struct {
-	Apps    []FastAPIApp    `json:"apps"`
-	Routers []FastAPIRouter `json:"routers"`
-	Routes  []FastAPIRoute  `json:"routes"`
+	Apps     []FastAPIApp    `json:"apps"`
+	Routers  []FastAPIRouter `json:"routers"`
+	Routes   []FastAPIRoute  `json:"routes"`
+	APICalls []PythonAPICall `json:"api_calls"`
+}
+
+// PythonAPICall represents a detected outgoing HTTP call, optionally matched
+// to a FastAPI route within the same project.
+type PythonAPICall struct {
+	Method     string `json:"method"`
+	URL        string `json:"url"`
+	Library    string `json:"library"`
+	Line       int    `json:"line"`
+	File       string `json:"file"`
+	Confidence string `json:"confidence"`
+	ToRoute    string `json:"to_route,omitempty"` // matched route path; empty if unmatched
+	ToFile     string `json:"to_file,omitempty"`  // file where the matched route is defined
 }
 
 // FastAPIApp represents a `FastAPI()` instantiation.
@@ -108,9 +122,10 @@ func (d *fastapiDetector) EnrichAnalysis(analysis *ProjectAnalysis) error {
 	}
 
 	info := &FastAPIAnalysis{
-		Apps:    []FastAPIApp{},
-		Routers: []FastAPIRouter{},
-		Routes:  []FastAPIRoute{},
+		Apps:     []FastAPIApp{},
+		Routers:  []FastAPIRouter{},
+		Routes:   []FastAPIRoute{},
+		APICalls: []PythonAPICall{},
 	}
 
 	moduleIndex := buildModuleIndex(analysis.Files)
@@ -213,6 +228,30 @@ func (d *fastapiDetector) EnrichAnalysis(analysis *ProjectAnalysis) error {
 					})
 				}
 			}
+		}
+	}
+
+	// Step 4: gather Python HTTP calls from all files and match them to routes.
+	// Library is only set on calls the Python adapter extracted (requests/httpx/
+	// urllib) — TypeScript's fetch/axios/ky calls leave it empty and are skipped.
+	for _, file := range analysis.Files {
+		for _, call := range file.Calls {
+			if call.Library == "" {
+				continue
+			}
+			apiCall := PythonAPICall{
+				Method:     call.Method,
+				URL:        call.Target,
+				Library:    call.Library,
+				Line:       call.Line,
+				File:       file.Path,
+				Confidence: call.Confidence,
+			}
+			if route, ok := matchRoute(apiCall, info.Routes); ok {
+				apiCall.ToRoute = route.Path
+				apiCall.ToFile = route.File
+			}
+			info.APICalls = append(info.APICalls, apiCall)
 		}
 	}
 
@@ -574,4 +613,58 @@ func combinePath(prefix, path string) string {
 		path = "/" + path
 	}
 	return p + path
+}
+
+// ── API call route matching ─────────────────────────────────────────────────
+
+// matchRoute finds the first route matching call's method and (normalized) URL.
+func matchRoute(call PythonAPICall, routes []FastAPIRoute) (FastAPIRoute, bool) {
+	url := normalizeCallURL(call.URL)
+	for _, route := range routes {
+		if route.Method != call.Method {
+			continue
+		}
+		if pathsMatch(url, route.Path) {
+			return route, true
+		}
+	}
+	return FastAPIRoute{}, false
+}
+
+// normalizeCallURL strips a scheme://host:port prefix, leaving just the path.
+func normalizeCallURL(url string) string {
+	idx := strings.Index(url, "://")
+	if idx < 0 {
+		return url
+	}
+	rest := url[idx+3:]
+	if slash := strings.IndexByte(rest, '/'); slash >= 0 {
+		return rest[slash:]
+	}
+	return "/"
+}
+
+// pathsMatch compares two paths segment by segment. A segment wrapped in
+// braces ({id}) matches any segment on the other side — this covers both a
+// route's own path parameters and f-string placeholders on the call side
+// (requests.get(f"/users/{user_id}")), which use the identical {name} syntax.
+func pathsMatch(callURL, routePath string) bool {
+	callSegs := strings.Split(strings.Trim(callURL, "/"), "/")
+	routeSegs := strings.Split(strings.Trim(routePath, "/"), "/")
+	if len(callSegs) != len(routeSegs) {
+		return false
+	}
+	for i := range routeSegs {
+		if isPathParam(routeSegs[i]) || isPathParam(callSegs[i]) {
+			continue
+		}
+		if routeSegs[i] != callSegs[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func isPathParam(seg string) bool {
+	return strings.HasPrefix(seg, "{") && strings.HasSuffix(seg, "}")
 }

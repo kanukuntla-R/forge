@@ -71,11 +71,24 @@ func (a *pythonAdapter) Analyze(_ string, content []byte) (*FileAnalysis, error)
 		}
 	}
 
+	rawAPICalls := tree.APICalls()
+	calls := make([]Call, len(rawAPICalls))
+	for i, c := range rawAPICalls {
+		calls[i] = Call{
+			Target:     c.URL,
+			Method:     c.Method,
+			Line:       c.Line,
+			Kind:       c.Library,
+			Confidence: c.Confidence,
+			Library:    c.Library,
+		}
+	}
+
 	return &FileAnalysis{
 		Imports:      imports,
 		Exports:      []Export{},
 		Declarations: decls,
-		Calls:        []Call{},
+		Calls:        calls,
 		ModuleCalls:  moduleCalls,
 	}, nil
 }

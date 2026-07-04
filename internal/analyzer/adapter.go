@@ -54,6 +54,7 @@ type Call struct {
 	Line       int    `json:"line"`
 	Kind       string `json:"kind"`
 	Confidence string `json:"confidence"`
+	Library    string `json:"library,omitempty"` // Python: "requests", "httpx", "urllib"; unset for TypeScript calls
 }
 
 // ModuleCall represents a bare (non-assignment) call statement at module level,
