@@ -15,7 +15,7 @@ func AnalyzeProject(projectRoot string) (*ProjectAnalysis, []error, error) {
 	resolver, _ := NewResolver(projectRoot, result.Analysis)
 	resolver.Resolve(result.Analysis)
 
-	for _, d := range []FrameworkDetector{NewNextjsDetector()} {
+	for _, d := range []FrameworkDetector{NewNextjsDetector(), NewFastAPIDetector()} {
 		if d.Detect(projectRoot) {
 			if err := d.EnrichAnalysis(result.Analysis); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("framework %s: %w", d.Name(), err))

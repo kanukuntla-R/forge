@@ -30,6 +30,7 @@ type FileInfo struct {
 	Imports      []Import       `json:"imports,omitempty"`
 	Declarations []Declaration  `json:"declarations,omitempty"`
 	Calls        []Call         `json:"calls,omitempty"`
+	ModuleCalls  []ModuleCall   `json:"module_calls,omitempty"`
 	Metadata     map[string]any `json:"metadata,omitempty"`
 }
 

@@ -132,6 +132,27 @@ func TestPythonAdapter_DeclarationsFlowThrough(t *testing.T) {
 	}
 }
 
+func TestPythonAdapter_ModuleCallsFlowThrough(t *testing.T) {
+	a := analyzer.NewPythonAdapter()
+	src := "app.include_router(users.router)\napp.include_router(auth_router, prefix=\"/auth\")\n"
+	result, err := a.Analyze("main.py", []byte(src))
+	if err != nil {
+		t.Fatalf("Analyze: %v", err)
+	}
+	if len(result.ModuleCalls) != 2 {
+		t.Fatalf("want 2 module calls, got %d: %+v", len(result.ModuleCalls), result.ModuleCalls)
+	}
+	if result.ModuleCalls[0].FunctionRepr != "app.include_router" {
+		t.Errorf("call 0 function: want %q, got %q", "app.include_router", result.ModuleCalls[0].FunctionRepr)
+	}
+	if result.ModuleCalls[0].ArgsRepr != "users.router" {
+		t.Errorf("call 0 args: want %q, got %q", "users.router", result.ModuleCalls[0].ArgsRepr)
+	}
+	if result.ModuleCalls[1].ArgsRepr != `auth_router, prefix="/auth"` {
+		t.Errorf("call 1 args: want %q, got %q", `auth_router, prefix="/auth"`, result.ModuleCalls[1].ArgsRepr)
+	}
+}
+
 func TestWalkPythonImportsPopulated(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "app.py", "import os\nfrom fastapi import FastAPI\nfrom .config import settings\n")

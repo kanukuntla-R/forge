@@ -14,6 +14,7 @@ type FileAnalysis struct {
 	Exports      []Export
 	Declarations []Declaration
 	Calls        []Call
+	ModuleCalls  []ModuleCall
 	Metadata     map[string]any
 }
 
@@ -53,4 +54,13 @@ type Call struct {
 	Line       int    `json:"line"`
 	Kind       string `json:"kind"`
 	Confidence string `json:"confidence"`
+}
+
+// ModuleCall represents a bare (non-assignment) call statement at module level,
+// e.g. Python's `app.include_router(users.router)`. Extraction is unfiltered —
+// framework detectors interpret the raw FunctionRepr/ArgsRepr as needed.
+type ModuleCall struct {
+	FunctionRepr string `json:"function"` // the callable expression, e.g. "app.include_router"
+	ArgsRepr     string `json:"args"`     // first positional argument's source text; "" if none
+	Line         int    `json:"line"`
 }

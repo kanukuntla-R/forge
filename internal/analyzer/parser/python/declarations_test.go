@@ -200,17 +200,60 @@ func TestExtractModuleVariableWithArgs(t *testing.T) {
 	}
 }
 
-func TestSkipPrimitiveVariable(t *testing.T) {
+func TestExtractIntegerConstantVariable(t *testing.T) {
 	decls := parseDeclarations(t, "MAX_RETRIES = 3\n")
-	if len(decls) != 0 {
-		t.Errorf("want 0 declarations for integer assignment, got %d: %+v", len(decls), decls)
+	if len(decls) != 1 {
+		t.Fatalf("want 1 declaration for integer assignment, got %d: %+v", len(decls), decls)
+	}
+	if decls[0].Name != "MAX_RETRIES" || decls[0].Kind != "variable" {
+		t.Errorf("want variable MAX_RETRIES, got %s %s", decls[0].Kind, decls[0].Name)
+	}
+	if decls[0].ValueRepr != "3" {
+		t.Errorf("value_repr: want %q, got %q", "3", decls[0].ValueRepr)
 	}
 }
 
-func TestSkipStringVariable(t *testing.T) {
-	decls := parseDeclarations(t, "NAME = \"example\"\n")
+func TestExtractFloatConstantVariable(t *testing.T) {
+	decls := parseDeclarations(t, "RATE = 1.5\n")
+	if len(decls) != 1 {
+		t.Fatalf("want 1 declaration for float assignment, got %d: %+v", len(decls), decls)
+	}
+	if decls[0].ValueRepr != "1.5" {
+		t.Errorf("value_repr: want %q, got %q", "1.5", decls[0].ValueRepr)
+	}
+}
+
+func TestExtractStringConstantVariable(t *testing.T) {
+	decls := parseDeclarations(t, "PREFIX = \"/api/v1\"\n")
+	if len(decls) != 1 {
+		t.Fatalf("want 1 declaration for string assignment, got %d: %+v", len(decls), decls)
+	}
+	if decls[0].Name != "PREFIX" || decls[0].Kind != "variable" {
+		t.Errorf("want variable PREFIX, got %s %s", decls[0].Kind, decls[0].Name)
+	}
+	if decls[0].ValueRepr != `"/api/v1"` {
+		t.Errorf("value_repr: want %q, got %q", `"/api/v1"`, decls[0].ValueRepr)
+	}
+}
+
+func TestSkipListVariable(t *testing.T) {
+	decls := parseDeclarations(t, "TAGS = [\"a\", \"b\"]\n")
 	if len(decls) != 0 {
-		t.Errorf("want 0 declarations for string assignment, got %d: %+v", len(decls), decls)
+		t.Errorf("want 0 declarations for list assignment, got %d: %+v", len(decls), decls)
+	}
+}
+
+func TestSkipDictVariable(t *testing.T) {
+	decls := parseDeclarations(t, "CFG = {\"x\": 1}\n")
+	if len(decls) != 0 {
+		t.Errorf("want 0 declarations for dict assignment, got %d: %+v", len(decls), decls)
+	}
+}
+
+func TestSkipTupleVariable(t *testing.T) {
+	decls := parseDeclarations(t, "PT = (1, 2)\n")
+	if len(decls) != 0 {
+		t.Errorf("want 0 declarations for tuple assignment, got %d: %+v", len(decls), decls)
 	}
 }
 

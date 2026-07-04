@@ -104,8 +104,9 @@ func extractClassDecl(node *Node, decorators []string) DeclarationInfo {
 }
 
 // extractVariableDecl handles expression_statement nodes that wrap a simple assignment
-// whose RHS is a call expression (e.g., `app = FastAPI()`).
-// Primitive-value assignments (int, str, list, dict literals) are skipped.
+// whose RHS is a call, string, or numeric literal (e.g., `app = FastAPI()`,
+// `PREFIX = "/api/v1"`, `MAX_RETRIES = 3`). Collection literals (list, dict, tuple)
+// are skipped — too varied in shape to be useful as a flat ValueRepr.
 func extractVariableDecl(node *Node) (DeclarationInfo, bool) {
 	if node.NamedChildCount() == 0 {
 		return DeclarationInfo{}, false
@@ -127,7 +128,12 @@ func extractVariableDecl(node *Node) (DeclarationInfo, bool) {
 	// tree-sitter-python doesn't expose a named field for the RHS of assignment, so we
 	// use positional access to the last named child — a grammar limitation, not a style choice.
 	rhs := assign.NamedChild(assign.NamedChildCount() - 1)
-	if rhs == nil || rhs.Type() != "call" {
+	if rhs == nil {
+		return DeclarationInfo{}, false
+	}
+	switch rhs.Type() {
+	case "call", "string", "integer", "float":
+	default:
 		return DeclarationInfo{}, false
 	}
 

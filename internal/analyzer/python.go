@@ -61,10 +61,21 @@ func (a *pythonAdapter) Analyze(_ string, content []byte) (*FileAnalysis, error)
 		}
 	}
 
+	rawModuleCalls := tree.ModuleCalls()
+	moduleCalls := make([]ModuleCall, len(rawModuleCalls))
+	for i, c := range rawModuleCalls {
+		moduleCalls[i] = ModuleCall{
+			FunctionRepr: c.FunctionRepr,
+			ArgsRepr:     c.ArgsRepr,
+			Line:         c.Line,
+		}
+	}
+
 	return &FileAnalysis{
 		Imports:      imports,
 		Exports:      []Export{},
 		Declarations: decls,
 		Calls:        []Call{},
+		ModuleCalls:  moduleCalls,
 	}, nil
 }
