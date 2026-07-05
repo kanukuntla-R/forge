@@ -18,11 +18,12 @@ type NextjsInfo struct {
 
 // NextjsAPICall represents a matched frontend-to-backend HTTP call.
 type NextjsAPICall struct {
-	FromFile   string `json:"from_file"`
-	ToRoute    string `json:"to_route,omitempty"` // empty when no matching route found
-	Method     string `json:"method"`
-	Line       int    `json:"line"`
-	Confidence string `json:"confidence"`
+	FromFile    string `json:"from_file"`
+	ToRoute     string `json:"to_route,omitempty"`     // empty when no matching route found
+	ToFramework string `json:"to_framework,omitempty"` // set only for cross-framework matches, e.g. "fastapi"
+	Method      string `json:"method"`
+	Line        int    `json:"line"`
+	Confidence  string `json:"confidence"`
 }
 
 // NextjsPage represents a page in the App Router (app/**/page.{tsx,ts,jsx,js}).
@@ -118,20 +119,6 @@ func (d *nextjsDetector) EnrichAnalysis(analysis *ProjectAnalysis) error {
 
 	info.Components = computeComponentUsage(analysis.Files, info.Components)
 
-	// API call matching: correlate detected HTTP calls against known routes.
-	for _, file := range analysis.Files {
-		for _, call := range file.Calls {
-			matchedRoute, matchConf := matchCallToRoute(call.Target, info.Routes)
-			info.APICalls = append(info.APICalls, NextjsAPICall{
-				FromFile:   file.Path,
-				ToRoute:    matchedRoute,
-				Method:     call.Method,
-				Line:       call.Line,
-				Confidence: combinedConfidence(call.Kind, matchConf),
-			})
-		}
-	}
-
 	if analysis.Frameworks == nil {
 		analysis.Frameworks = make(map[string]any)
 	}
@@ -140,50 +127,43 @@ func (d *nextjsDetector) EnrichAnalysis(analysis *ProjectAnalysis) error {
 	return nil
 }
 
-// ── Route matching ──────────────────────────────────────────────────────────
+// MatchAPICalls correlates TypeScript-origin HTTP calls against Next.js
+// routes, falling back to FastAPI routes when no native match is found.
+// Runs after EnrichAnalysis has run for every detected framework.
+func (d *nextjsDetector) MatchAPICalls(analysis *ProjectAnalysis) error {
+	info, ok := analysis.Frameworks["nextjs"].(*NextjsInfo)
+	if !ok {
+		return nil
+	}
 
-// matchCallToRoute attempts to match a URL target against known routes.
-// Returns the matched route path and a match confidence ("exact", "pattern", or "").
-func matchCallToRoute(target string, routes []NextjsRoute) (routePath, matchConf string) {
-	// 1. Exact match.
-	for _, r := range routes {
-		if r.Path == target {
-			return r.Path, "exact"
-		}
+	nativeRoutes := nextjsRouteCandidates(info.Routes)
+	var otherRoutes []routeCandidate
+	if fastapi, ok := analysis.Frameworks["fastapi"].(*FastAPIAnalysis); ok {
+		otherRoutes = fastapiRouteCandidates(fastapi.Routes)
 	}
-	// 2. Pattern match: "/api/products/123" matches "/api/products/:id".
-	for _, r := range routes {
-		if routeMatchesTarget(r.Path, target) {
-			return r.Path, "pattern"
-		}
-	}
-	return "", ""
-}
 
-// routeMatchesTarget returns true when target fits the route pattern.
-// Pattern segments starting with ":" match any non-empty target segment.
-func routeMatchesTarget(pattern, target string) bool {
-	pSegs := strings.Split(strings.TrimPrefix(pattern, "/"), "/")
-	tSegs := strings.Split(strings.TrimPrefix(target, "/"), "/")
-	if len(pSegs) != len(tSegs) {
-		return false
-	}
-	for i, p := range pSegs {
-		if strings.HasPrefix(p, ":") {
-			if tSegs[i] == "" {
-				return false
+	for _, file := range analysis.Files {
+		for _, call := range file.Calls {
+			if call.Library != "" {
+				continue // Python-origin call; handled by fastapi's MatchAPICalls
 			}
-			continue
-		}
-		// Param placeholder in target (from interpolated template) also matches.
-		if strings.HasPrefix(tSegs[i], ":") {
-			continue
-		}
-		if p != tSegs[i] {
-			return false
+			apiCall := NextjsAPICall{FromFile: file.Path, Method: call.Method, Line: call.Line}
+			path, _, toFramework, matchKind, matched := MatchAPICall(call.Method, call.Target, "nextjs", nativeRoutes, otherRoutes, false)
+			if matched {
+				apiCall.ToRoute = path
+				if toFramework != "" {
+					apiCall.ToFramework = toFramework
+					apiCall.Confidence = CrossFrameworkConfidence(call.Target)
+				} else {
+					apiCall.Confidence = combinedConfidence(call.Kind, matchKind)
+				}
+			} else {
+				apiCall.Confidence = combinedConfidence(call.Kind, "")
+			}
+			info.APICalls = append(info.APICalls, apiCall)
 		}
 	}
-	return true
+	return nil
 }
 
 // combinedConfidence merges the call's client kind and the route match confidence

@@ -27,6 +27,9 @@ func enrichFastAPI(t *testing.T, files []analyzer.FileInfo) *analyzer.FastAPIAna
 	if err := d.EnrichAnalysis(analysis); err != nil {
 		t.Fatalf("EnrichAnalysis: %v", err)
 	}
+	if err := d.MatchAPICalls(analysis); err != nil {
+		t.Fatalf("MatchAPICalls: %v", err)
+	}
 	raw, ok := analysis.Frameworks["fastapi"]
 	if !ok {
 		t.Fatal("frameworks.fastapi not set")

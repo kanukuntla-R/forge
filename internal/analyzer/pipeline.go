@@ -15,11 +15,22 @@ func AnalyzeProject(projectRoot string) (*ProjectAnalysis, []error, error) {
 	resolver, _ := NewResolver(projectRoot, result.Analysis)
 	resolver.Resolve(result.Analysis)
 
-	for _, d := range []FrameworkDetector{NewNextjsDetector(), NewFastAPIDetector()} {
+	detectors := []FrameworkDetector{NewNextjsDetector(), NewFastAPIDetector()}
+
+	// Pass 1: build each detected framework's structure (apps/routers/routes).
+	for _, d := range detectors {
 		if d.Detect(projectRoot) {
 			if err := d.EnrichAnalysis(result.Analysis); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("framework %s: %w", d.Name(), err))
 			}
+		}
+	}
+
+	// Pass 2: match API calls, now that every framework's routes exist —
+	// needed for cross-framework matching regardless of detector order.
+	for _, d := range detectors {
+		if err := d.MatchAPICalls(result.Analysis); err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("framework %s: %w", d.Name(), err))
 		}
 	}
 

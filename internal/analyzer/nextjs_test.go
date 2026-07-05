@@ -26,6 +26,9 @@ func enrichNextjs(t *testing.T, files []analyzer.FileInfo) *analyzer.NextjsInfo 
 	if err := d.EnrichAnalysis(analysis); err != nil {
 		t.Fatalf("EnrichAnalysis: %v", err)
 	}
+	if err := d.MatchAPICalls(analysis); err != nil {
+		t.Fatalf("MatchAPICalls: %v", err)
+	}
 	raw, ok := analysis.Frameworks["nextjs"]
 	if !ok {
 		t.Fatal("frameworks.nextjs not set")

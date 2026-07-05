@@ -18,14 +18,15 @@ type FastAPIAnalysis struct {
 // PythonAPICall represents a detected outgoing HTTP call, optionally matched
 // to a FastAPI route within the same project.
 type PythonAPICall struct {
-	Method     string `json:"method"`
-	URL        string `json:"url"`
-	Library    string `json:"library"`
-	Line       int    `json:"line"`
-	File       string `json:"file"`
-	Confidence string `json:"confidence"`
-	ToRoute    string `json:"to_route,omitempty"` // matched route path; empty if unmatched
-	ToFile     string `json:"to_file,omitempty"`  // file where the matched route is defined
+	Method      string `json:"method"`
+	URL         string `json:"url"`
+	Library     string `json:"library"`
+	Line        int    `json:"line"`
+	File        string `json:"file"`
+	Confidence  string `json:"confidence"`
+	ToRoute     string `json:"to_route,omitempty"`     // matched route path; empty if unmatched
+	ToFile      string `json:"to_file,omitempty"`      // file where the matched route is defined
+	ToFramework string `json:"to_framework,omitempty"` // set only for cross-framework matches, e.g. "nextjs"
 }
 
 // FastAPIApp represents a `FastAPI()` instantiation.
@@ -231,13 +232,35 @@ func (d *fastapiDetector) EnrichAnalysis(analysis *ProjectAnalysis) error {
 		}
 	}
 
-	// Step 4: gather Python HTTP calls from all files and match them to routes.
-	// Library is only set on calls the Python adapter extracted (requests/httpx/
-	// urllib) — TypeScript's fetch/axios/ky calls leave it empty and are skipped.
+	if analysis.Frameworks == nil {
+		analysis.Frameworks = make(map[string]any)
+	}
+	analysis.Frameworks["fastapi"] = info
+	analysis.Project.Frameworks = append(analysis.Project.Frameworks, "fastapi")
+	return nil
+}
+
+// MatchAPICalls correlates Python-origin HTTP calls against FastAPI routes,
+// falling back to Next.js routes when no native match is found. Runs after
+// EnrichAnalysis has run for every detected framework.
+// Library is only set on calls the Python adapter extracted (requests/httpx/
+// urllib) — TypeScript's fetch/axios/ky calls leave it empty and are skipped.
+func (d *fastapiDetector) MatchAPICalls(analysis *ProjectAnalysis) error {
+	info, ok := analysis.Frameworks["fastapi"].(*FastAPIAnalysis)
+	if !ok {
+		return nil
+	}
+
+	nativeRoutes := fastapiRouteCandidates(info.Routes)
+	var otherRoutes []routeCandidate
+	if nextjs, ok := analysis.Frameworks["nextjs"].(*NextjsInfo); ok {
+		otherRoutes = nextjsRouteCandidates(nextjs.Routes)
+	}
+
 	for _, file := range analysis.Files {
 		for _, call := range file.Calls {
 			if call.Library == "" {
-				continue
+				continue // TypeScript-origin call; handled by nextjs's MatchAPICalls
 			}
 			apiCall := PythonAPICall{
 				Method:     call.Method,
@@ -247,19 +270,18 @@ func (d *fastapiDetector) EnrichAnalysis(analysis *ProjectAnalysis) error {
 				File:       file.Path,
 				Confidence: call.Confidence,
 			}
-			if route, ok := matchRoute(apiCall, info.Routes); ok {
-				apiCall.ToRoute = route.Path
-				apiCall.ToFile = route.File
+			path, matchedFile, toFramework, _, matched := MatchAPICall(call.Method, call.Target, "fastapi", nativeRoutes, otherRoutes, true)
+			if matched {
+				apiCall.ToRoute = path
+				apiCall.ToFile = matchedFile
+				if toFramework != "" {
+					apiCall.ToFramework = toFramework
+					apiCall.Confidence = CrossFrameworkConfidence(call.Target)
+				}
 			}
 			info.APICalls = append(info.APICalls, apiCall)
 		}
 	}
-
-	if analysis.Frameworks == nil {
-		analysis.Frameworks = make(map[string]any)
-	}
-	analysis.Frameworks["fastapi"] = info
-	analysis.Project.Frameworks = append(analysis.Project.Frameworks, "fastapi")
 	return nil
 }
 
@@ -615,56 +637,5 @@ func combinePath(prefix, path string) string {
 	return p + path
 }
 
-// ── API call route matching ─────────────────────────────────────────────────
-
-// matchRoute finds the first route matching call's method and (normalized) URL.
-func matchRoute(call PythonAPICall, routes []FastAPIRoute) (FastAPIRoute, bool) {
-	url := normalizeCallURL(call.URL)
-	for _, route := range routes {
-		if route.Method != call.Method {
-			continue
-		}
-		if pathsMatch(url, route.Path) {
-			return route, true
-		}
-	}
-	return FastAPIRoute{}, false
-}
-
-// normalizeCallURL strips a scheme://host:port prefix, leaving just the path.
-func normalizeCallURL(url string) string {
-	idx := strings.Index(url, "://")
-	if idx < 0 {
-		return url
-	}
-	rest := url[idx+3:]
-	if slash := strings.IndexByte(rest, '/'); slash >= 0 {
-		return rest[slash:]
-	}
-	return "/"
-}
-
-// pathsMatch compares two paths segment by segment. A segment wrapped in
-// braces ({id}) matches any segment on the other side — this covers both a
-// route's own path parameters and f-string placeholders on the call side
-// (requests.get(f"/users/{user_id}")), which use the identical {name} syntax.
-func pathsMatch(callURL, routePath string) bool {
-	callSegs := strings.Split(strings.Trim(callURL, "/"), "/")
-	routeSegs := strings.Split(strings.Trim(routePath, "/"), "/")
-	if len(callSegs) != len(routeSegs) {
-		return false
-	}
-	for i := range routeSegs {
-		if isPathParam(routeSegs[i]) || isPathParam(callSegs[i]) {
-			continue
-		}
-		if routeSegs[i] != callSegs[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func isPathParam(seg string) bool {
-	return strings.HasPrefix(seg, "{") && strings.HasSuffix(seg, "}")
-}
+// Route matching (matchRoute/pathsMatch/normalizeCallURL) now lives in
+// cross_framework.go, shared with nextjs.go's MatchAPICalls.

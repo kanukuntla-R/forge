@@ -54,13 +54,19 @@ function buildGraphData(analysis) {
     const edges   = [];
     const nodeIds = new Set();
 
-    if (nextjs) addNextJSNodesAndEdges(nextjs, analysis, nodes, edges, nodeIds);
-    if (fastapi) addFastAPINodesAndEdges(fastapi, nodes, edges, nodeIds);
+    // Nodes for both frameworks must exist before either framework's edges
+    // are built — a cross-framework api_call edge (e.g. a Next.js page
+    // calling a FastAPI route) needs the OTHER framework's node to already
+    // be in nodeIds, regardless of which framework's edges are built first.
+    if (nextjs) addNextJSNodes(nextjs, nodes, nodeIds);
+    if (fastapi) addFastAPINodes(fastapi, nodes, nodeIds);
+    if (nextjs) addNextJSEdges(nextjs, analysis, edges, nodeIds);
+    if (fastapi) addFastAPIEdges(fastapi, analysis, edges, nodeIds);
 
     return { nodes, edges };
 }
 
-function addNextJSNodesAndEdges(nextjs, analysis, nodes, edges, nodeIds) {
+function addNextJSNodes(nextjs, nodes, nodeIds) {
     for (const page of (nextjs.pages || [])) {
         const id = page.file;
         if (!nodeIds.has(id)) {
@@ -84,19 +90,33 @@ function addNextJSNodesAndEdges(nextjs, analysis, nodes, edges, nodeIds) {
             nodeIds.add(id);
         }
     }
+}
 
-    // API call edges — only emit if both endpoints are graph nodes
+function addNextJSEdges(nextjs, analysis, edges, nodeIds) {
+    // API call edges — only emit if both endpoints are graph nodes.
+    // to_framework names the framework that OWNS the matched route (empty
+    // means it's one of this project's own Next.js routes); the fallback
+    // framework's routes/node-id scheme differ, so the lookup branches on it.
     for (let i = 0; i < (nextjs.api_calls || []).length; i++) {
         const call = nextjs.api_calls[i];
         if (!call.to_route) continue;
-        const targetRoute = (nextjs.routes || []).find(r => r.path === call.to_route);
-        if (!targetRoute) continue;
-        if (!nodeIds.has(call.from_file) || !nodeIds.has(targetRoute.file)) continue;
+        let targetId;
+        if (call.to_framework === 'fastapi') {
+            const fastapi = analysis.frameworks && analysis.frameworks.fastapi;
+            const targetRoute = ((fastapi && fastapi.routes) || []).find(r => r.path === call.to_route);
+            if (!targetRoute) continue;
+            targetId = 'fastapi-route:' + targetRoute.method + ':' + targetRoute.path;
+        } else {
+            const targetRoute = (nextjs.routes || []).find(r => r.path === call.to_route);
+            if (!targetRoute) continue;
+            targetId = targetRoute.file;
+        }
+        if (!nodeIds.has(call.from_file) || !nodeIds.has(targetId)) continue;
         edges.push({
             data: {
                 id: 'api-' + i,
                 source: call.from_file,
-                target: targetRoute.file,
+                target: targetId,
                 type: 'api_call',
                 method: call.method || 'GET',
                 confidence: call.confidence,
@@ -152,7 +172,7 @@ function addNextJSNodesAndEdges(nextjs, analysis, nodes, edges, nodeIds) {
     }
 }
 
-function addFastAPINodesAndEdges(fastapi, nodes, edges, nodeIds) {
+function addFastAPINodes(fastapi, nodes, nodeIds) {
     for (const app of (fastapi.apps || [])) {
         const id = 'fastapi-app:' + app.file;
         if (!nodeIds.has(id)) {
@@ -181,7 +201,9 @@ function addFastAPINodesAndEdges(fastapi, nodes, edges, nodeIds) {
             nodeIds.add(id);
         }
     }
+}
 
+function addFastAPIEdges(fastapi, analysis, edges, nodeIds) {
     // Router → app edges (include_router), only for reachable routers.
     let inclusionIdx = 0;
     for (const router of (fastapi.routers || [])) {
@@ -212,12 +234,22 @@ function addFastAPINodesAndEdges(fastapi, nodes, edges, nodeIds) {
 
     // api_calls edges — only emit if both endpoints are already graph nodes
     // (caller file may be a plain Python script with no FastAPI node of its own).
+    // to_framework names the framework that OWNS the matched route (empty
+    // means it's one of this project's own FastAPI routes).
     for (let i = 0; i < (fastapi.api_calls || []).length; i++) {
         const call = fastapi.api_calls[i];
         if (!call.to_route) continue;
-        const targetRoute = (fastapi.routes || []).find(r => r.path === call.to_route);
-        if (!targetRoute) continue;
-        const targetId = 'fastapi-route:' + targetRoute.method + ':' + targetRoute.path;
+        let targetId;
+        if (call.to_framework === 'nextjs') {
+            const nextjs = analysis && analysis.frameworks && analysis.frameworks.nextjs;
+            const targetRoute = ((nextjs && nextjs.routes) || []).find(r => r.path === call.to_route);
+            if (!targetRoute) continue;
+            targetId = targetRoute.file;
+        } else {
+            const targetRoute = (fastapi.routes || []).find(r => r.path === call.to_route);
+            if (!targetRoute) continue;
+            targetId = 'fastapi-route:' + targetRoute.method + ':' + targetRoute.path;
+        }
         if (!nodeIds.has(call.file) || !nodeIds.has(targetId)) continue;
         edges.push({
             data: {
