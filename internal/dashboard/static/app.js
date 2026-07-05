@@ -47,13 +47,20 @@ function getCallTarget(apiCall, files) {
 }
 
 function buildGraphData(analysis) {
-    const nextjs = analysis.frameworks && analysis.frameworks.nextjs;
-    if (!nextjs) return { nodes: [], edges: [] };
+    const nextjs  = analysis.frameworks && analysis.frameworks.nextjs;
+    const fastapi = analysis.frameworks && analysis.frameworks.fastapi;
 
     const nodes   = [];
     const edges   = [];
     const nodeIds = new Set();
 
+    if (nextjs) addNextJSNodesAndEdges(nextjs, analysis, nodes, edges, nodeIds);
+    if (fastapi) addFastAPINodesAndEdges(fastapi, nodes, edges, nodeIds);
+
+    return { nodes, edges };
+}
+
+function addNextJSNodesAndEdges(nextjs, analysis, nodes, edges, nodeIds) {
     for (const page of (nextjs.pages || [])) {
         const id = page.file;
         if (!nodeIds.has(id)) {
@@ -137,12 +144,92 @@ function buildGraphData(analysis) {
         edges.filter(e => e.data.type === 'usage')
              .map(e => e.data.source + '|' + e.data.target)
     );
-    return {
-        nodes,
-        edges: edges.filter(e =>
-            !(e.data.type === 'import' && usagePairs.has(e.data.source + '|' + e.data.target))
-        ),
-    };
+    for (let i = edges.length - 1; i >= 0; i--) {
+        const e = edges[i];
+        if (e.data.type === 'import' && usagePairs.has(e.data.source + '|' + e.data.target)) {
+            edges.splice(i, 1);
+        }
+    }
+}
+
+function addFastAPINodesAndEdges(fastapi, nodes, edges, nodeIds) {
+    for (const app of (fastapi.apps || [])) {
+        const id = 'fastapi-app:' + app.file;
+        if (!nodeIds.has(id)) {
+            nodes.push({ data: { id, label: app.name, type: 'page', file: app.file, framework: 'fastapi' } });
+            nodeIds.add(id);
+        }
+    }
+
+    for (const router of (fastapi.routers || [])) {
+        const id = 'fastapi-router:' + router.file + ':' + router.name;
+        if (!nodeIds.has(id)) {
+            nodes.push({ data: { id, label: router.prefix || router.name, type: 'router', file: router.file, framework: 'fastapi' } });
+            nodeIds.add(id);
+        }
+    }
+
+    for (const route of (fastapi.routes || [])) {
+        const id = 'fastapi-route:' + route.method + ':' + route.path;
+        if (!nodeIds.has(id)) {
+            nodes.push({
+                data: {
+                    id, type: 'route', file: route.file, framework: 'fastapi',
+                    label: route.method + ' ' + route.path + '\n' + route.handler,
+                }
+            });
+            nodeIds.add(id);
+        }
+    }
+
+    // Router → app edges (include_router), only for reachable routers.
+    let inclusionIdx = 0;
+    for (const router of (fastapi.routers || [])) {
+        if (!router.reachable) continue;
+        const routerId = 'fastapi-router:' + router.file + ':' + router.name;
+        const app = (fastapi.apps || [])[0];
+        if (!app) continue;
+        const appId = 'fastapi-app:' + app.file;
+        if (!nodeIds.has(routerId) || !nodeIds.has(appId)) continue;
+        edges.push({ data: { id: 'router-inclusion-' + (inclusionIdx++), source: routerId, target: appId, type: 'router_inclusion' } });
+    }
+
+    // Route → router (or app if no router) edges, same visual type as inclusion.
+    for (const route of (fastapi.routes || [])) {
+        const routeId = 'fastapi-route:' + route.method + ':' + route.path;
+        let parentId = null;
+        if (route.router_name) {
+            const router = (fastapi.routers || []).find(r => r.name === route.router_name && r.file === route.file);
+            if (router) parentId = 'fastapi-router:' + router.file + ':' + router.name;
+        }
+        if (!parentId) {
+            const app = (fastapi.apps || [])[0];
+            if (app) parentId = 'fastapi-app:' + app.file;
+        }
+        if (!parentId || !nodeIds.has(routeId) || !nodeIds.has(parentId)) continue;
+        edges.push({ data: { id: 'router-inclusion-' + (inclusionIdx++), source: routeId, target: parentId, type: 'router_inclusion' } });
+    }
+
+    // api_calls edges — only emit if both endpoints are already graph nodes
+    // (caller file may be a plain Python script with no FastAPI node of its own).
+    for (let i = 0; i < (fastapi.api_calls || []).length; i++) {
+        const call = fastapi.api_calls[i];
+        if (!call.to_route) continue;
+        const targetRoute = (fastapi.routes || []).find(r => r.path === call.to_route);
+        if (!targetRoute) continue;
+        const targetId = 'fastapi-route:' + targetRoute.method + ':' + targetRoute.path;
+        if (!nodeIds.has(call.file) || !nodeIds.has(targetId)) continue;
+        edges.push({
+            data: {
+                id: 'fastapi-api-' + i,
+                source: call.file,
+                target: targetId,
+                type: 'api_call',
+                method: call.method || 'GET',
+                confidence: call.confidence,
+            }
+        });
+    }
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -185,6 +272,7 @@ const cytoscapeStyle = [
             'shape':        'hexagon',
             'background-color': '#10b981',
             'label':        'data(label)',
+            'text-wrap':    'wrap',
             'color':        '#fff',
             'text-valign':  'center',
             'text-halign':  'center',
@@ -193,6 +281,24 @@ const cytoscapeStyle = [
             'width':        'label',
             'height':       'label',
             'padding':      '10px',
+            'border-width': 0,
+        }
+    },
+    {
+        selector: 'node[type="router"]',
+        style: {
+            'shape':        'hexagon',
+            'background-color': '#f97316',
+            'label':        'data(label)',
+            'text-wrap':    'wrap',
+            'color':        '#fff',
+            'text-valign':  'center',
+            'text-halign':  'center',
+            'font-size':    '11px',
+            'font-family':  'monospace',
+            'width':        'label',
+            'height':       32,
+            'padding':      '8px',
             'border-width': 0,
         }
     },
@@ -251,6 +357,16 @@ const cytoscapeStyle = [
         }
     },
     {
+        selector: 'edge[type="router_inclusion"]',
+        style: {
+            'width':              2,
+            'line-color':         '#f97316',
+            'target-arrow-color': '#f97316',
+            'target-arrow-shape': 'triangle',
+            'curve-style':        'bezier',
+        }
+    },
+    {
         selector: '.faded',
         style: { 'opacity': 0.2 }
     },
@@ -270,6 +386,13 @@ function MethodBadge({ method }) {
     return React.createElement('span', {
         className: 'text-xs px-1.5 py-0.5 rounded font-mono font-medium ' + cls
     }, method);
+}
+
+function ReachableBadge({ reachable }) {
+    const cls = reachable ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
+    return React.createElement('span', {
+        className: 'text-xs px-1.5 py-0.5 rounded ' + cls
+    }, reachable ? 'reachable' : 'unreachable');
 }
 
 function ClickableFile({ path, onNavigate }) {
@@ -515,12 +638,13 @@ function ConnectionRow({ call, files, onNavigateToFile }) {
     );
 }
 
-function ConnectionsSection({ apiCalls, files, onNavigateToFile }) {
-    return React.createElement(DetailSection, { title: 'Connections', count: apiCalls.length },
+function ConnectionsSection({ apiCalls, files, onNavigateToFile, title, emptyMessage }) {
+    return React.createElement(DetailSection, { title: title || 'Connections', count: apiCalls.length },
         apiCalls.length > 0
             ? apiCalls.map((call, i) =>
                 React.createElement(ConnectionRow, { key: i, call, files, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No frontend-to-backend calls detected. Add a fetch call to a page to see connections here.')
+            : React.createElement('p', { className: 'text-sm text-gray-400 italic' },
+                emptyMessage || 'No frontend-to-backend calls detected. Add a fetch call to a page to see connections here.')
     );
 }
 
@@ -559,23 +683,84 @@ function APIRoutesSection({ routes, onNavigateToFile }) {
     );
 }
 
+function AppRow({ app, onNavigateToFile }) {
+    return React.createElement('div', { className: 'flex items-center gap-3 py-1 text-sm' },
+        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-gray-800 w-48 flex-shrink-0' }, app.name),
+        React.createElement(ClickableFile, { path: app.file, onNavigate: onNavigateToFile })
+    );
+}
+
+function FastAPIAppsSection({ apps, onNavigateToFile }) {
+    return React.createElement(DetailSection, { title: 'FastAPI Apps', count: apps.length },
+        apps.length > 0
+            ? apps.map((app, i) => React.createElement(AppRow, { key: i, app, onNavigateToFile }))
+            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No FastAPI apps detected.')
+    );
+}
+
+function RouterRow({ router, onNavigateToFile }) {
+    return React.createElement('div', { className: 'flex items-center gap-2 py-1 text-sm flex-wrap' },
+        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-gray-800 w-48 flex-shrink-0' }, router.prefix || router.name),
+        React.createElement(ReachableBadge, { reachable: router.reachable }),
+        React.createElement(ClickableFile, { path: router.file, onNavigate: onNavigateToFile })
+    );
+}
+
+function RoutersSection({ routers, onNavigateToFile }) {
+    return React.createElement(DetailSection, { title: 'Routers', count: routers.length },
+        routers.length > 0
+            ? routers.map((router, i) => React.createElement(RouterRow, { key: i, router, onNavigateToFile }))
+            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No routers detected.')
+    );
+}
+
+function FastAPIRouteRow({ route, onNavigateToFile }) {
+    return React.createElement('div', { className: 'flex items-center gap-2 py-1 text-sm flex-wrap' },
+        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
+        React.createElement(MethodBadge, { method: route.method }),
+        React.createElement('span', { className: 'font-mono text-gray-800' }, route.path),
+        route.is_async && React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500' }, 'async'),
+        React.createElement('span', { className: 'text-gray-400' }, route.handler),
+        React.createElement(ReachableBadge, { reachable: route.reachable }),
+        React.createElement(ClickableFile, { path: route.file, onNavigate: onNavigateToFile })
+    );
+}
+
+function FastAPIRoutesSection({ routes, onNavigateToFile }) {
+    return React.createElement(DetailSection, { title: 'FastAPI Routes', count: routes.length },
+        routes.length > 0
+            ? routes.map((route, i) => React.createElement(FastAPIRouteRow, { key: i, route, onNavigateToFile }))
+            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No FastAPI routes detected.')
+    );
+}
+
 function RoutesView({ analysis, onNavigateToFile }) {
-    const nextjs = analysis.frameworks && analysis.frameworks.nextjs;
-    if (!nextjs) {
+    const nextjs  = analysis.frameworks && analysis.frameworks.nextjs;
+    const fastapi = analysis.frameworks && analysis.frameworks.fastapi;
+    if (!nextjs && !fastapi) {
         return React.createElement('div', {
             className: 'flex-1 flex items-center justify-center p-8 text-gray-400 text-sm text-center'
-        }, 'No framework detected. Routes view is currently only available for Next.js projects.');
+        }, 'No framework detected. Routes view is currently available for Next.js and FastAPI projects.');
     }
-
-    const apiCalls = nextjs.api_calls || [];
-    const pages    = nextjs.pages    || [];
-    const routes   = nextjs.routes   || [];
 
     return React.createElement('div', { className: 'flex-1 overflow-y-auto bg-white' },
         React.createElement('div', { className: 'p-6 max-w-3xl' },
-            React.createElement(ConnectionsSection, { apiCalls, files: analysis.files, onNavigateToFile }),
-            React.createElement(PagesSection, { pages, onNavigateToFile }),
-            React.createElement(APIRoutesSection, { routes, onNavigateToFile })
+            nextjs && React.createElement(ConnectionsSection, {
+                apiCalls: nextjs.api_calls || [], files: analysis.files, onNavigateToFile,
+            }),
+            nextjs && React.createElement(PagesSection, { pages: nextjs.pages || [], onNavigateToFile }),
+            nextjs && React.createElement(APIRoutesSection, { routes: nextjs.routes || [], onNavigateToFile }),
+            fastapi && React.createElement(FastAPIAppsSection, { apps: fastapi.apps || [], onNavigateToFile }),
+            fastapi && React.createElement(RoutersSection, { routers: fastapi.routers || [], onNavigateToFile }),
+            fastapi && React.createElement(FastAPIRoutesSection, { routes: fastapi.routes || [], onNavigateToFile }),
+            fastapi && React.createElement(ConnectionsSection, {
+                apiCalls: (fastapi.api_calls || []).map(c => ({ from_file: c.file, to_route: c.to_route, method: c.method, confidence: c.confidence, line: c.line })),
+                files: analysis.files, onNavigateToFile,
+                title: 'FastAPI Connections',
+                emptyMessage: 'No client-to-server calls detected in this project.',
+            }),
         )
     );
 }
@@ -588,15 +773,21 @@ function GraphView({ analysis, onNavigateToFile }) {
     const [showApiCalls, setShowApiCalls] = useState(true);
     const [showImports,  setShowImports]  = useState(false);
     const [showUsage,    setShowUsage]    = useState(false);
+    const [showRouterInclusion, setShowRouterInclusion] = useState(true);
     const [nodeTypeFilter, setNodeTypeFilter] = useState({
-        page: true, route: true, component: true,
+        page: true, route: true, component: true, router: true,
     });
 
     const nextjs  = analysis.frameworks && analysis.frameworks.nextjs;
+    const fastapi = analysis.frameworks && analysis.frameworks.fastapi;
     const hasData = !!(nextjs && (
         (nextjs.pages      || []).length > 0 ||
         (nextjs.routes     || []).length > 0 ||
         (nextjs.components || []).length > 0
+    )) || !!(fastapi && (
+        (fastapi.apps    || []).length > 0 ||
+        (fastapi.routers || []).length > 0 ||
+        (fastapi.routes  || []).length > 0
     ));
 
     // Initialize cytoscape; re-run only if analysis changes.
@@ -662,7 +853,8 @@ function GraphView({ analysis, onNavigateToFile }) {
         cyRef.current.edges('[type="api_call"]').style('display', showApiCalls ? 'element' : 'none');
         cyRef.current.edges('[type="import"]').style('display',   showImports  ? 'element' : 'none');
         cyRef.current.edges('[type="usage"]').style('display',    showUsage    ? 'element' : 'none');
-    }, [showApiCalls, showImports, showUsage]);
+        cyRef.current.edges('[type="router_inclusion"]').style('display', showRouterInclusion ? 'element' : 'none');
+    }, [showApiCalls, showImports, showUsage, showRouterInclusion]);
 
     // Sync node visibility with type filter.
     useEffect(() => {
@@ -675,7 +867,7 @@ function GraphView({ analysis, onNavigateToFile }) {
     if (!hasData) {
         return React.createElement('div', {
             className: 'flex-1 flex items-center justify-center p-8 text-gray-400 text-sm text-center'
-        }, 'No graph data available. The graph view shows pages, API routes, and components from Next.js projects. Add files to your project to populate it.');
+        }, 'No graph data available. The graph view shows pages, routes, and components from Next.js and FastAPI projects. Add files to your project to populate it.');
     }
 
     return React.createElement('div', { className: 'flex-1 flex flex-col bg-gray-50 overflow-hidden' },
@@ -688,6 +880,7 @@ function GraphView({ analysis, onNavigateToFile }) {
                 makeToggle('API calls', '#3b82f6', showApiCalls, () => setShowApiCalls(v => !v)),
                 makeToggle('Imports',   '#9ca3af', showImports,  () => setShowImports(v => !v)),
                 makeToggle('Usage',     '#a78bfa', showUsage,    () => setShowUsage(v => !v)),
+                makeToggle('Router inclusion', '#f97316', showRouterInclusion, () => setShowRouterInclusion(v => !v)),
             ),
             React.createElement('div', { className: 'flex items-center gap-2 ml-4' },
                 React.createElement('span', { className: 'text-gray-500 font-medium' }, 'Show:'),
@@ -697,6 +890,8 @@ function GraphView({ analysis, onNavigateToFile }) {
                     () => setNodeTypeFilter(p => ({ ...p, route:     !p.route }))),
                 makeToggle('Components', '#8b5cf6', nodeTypeFilter.component,
                     () => setNodeTypeFilter(p => ({ ...p, component: !p.component }))),
+                makeToggle('Routers',    '#f97316', nodeTypeFilter.router,
+                    () => setNodeTypeFilter(p => ({ ...p, router:    !p.router }))),
             ),
             React.createElement('div', { className: 'ml-auto text-gray-400 text-xs' },
                 'Click to highlight · Double-click to open in Files'
