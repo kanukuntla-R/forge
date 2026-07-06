@@ -280,6 +280,19 @@ const METHOD_CLASS = {
     DELETE:  'bg-red-100 text-red-700',
 };
 
+// cose layout options, shared by every place that runs the graph layout so
+// spacing tuning can't drift out of sync between call sites.
+const coseLayoutOptions = {
+    name: 'cose',
+    padding: 60,
+    nodeRepulsion: 500000,
+    idealEdgeLength: 200,
+    gravity: 0.15,
+    numIter: 2500,
+    nodeOverlap: 20,
+    randomize: false,
+};
+
 const cytoscapeStyle = [
     {
         selector: 'node[type="page"]',
@@ -837,13 +850,7 @@ function GraphView({ analysis, onNavigateToFile }) {
             container: containerRef.current,
             elements: [...graphData.nodes, ...graphData.edges],
             style: cytoscapeStyle,
-            layout: {
-                name: 'cose',
-                padding: 30,
-                nodeRepulsion: 8000,
-                idealEdgeLength: 100,
-                randomize: false,
-            },
+            layout: coseLayoutOptions,
         });
 
         // cose layout is synchronous — all node positions are final here.
