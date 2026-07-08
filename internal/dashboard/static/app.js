@@ -283,14 +283,18 @@ const METHOD_CLASS = {
 // cose layout options, shared by every place that runs the graph layout so
 // spacing tuning can't drift out of sync between call sites.
 const coseLayoutOptions = {
-    name: 'cose',
+    name: 'cose-bilkent',
     padding: 60,
-    nodeRepulsion: 500000,
-    idealEdgeLength: 200,
-    gravity: 0.15,
+    nodeRepulsion: 8000,
+    idealEdgeLength: 100,
     numIter: 2500,
-    nodeOverlap: 20,
+    nodeOverlap: 30,
     randomize: false,
+    fit: true,
+    tile: true,
+    tilingPaddingVertical: 15,
+    tilingPaddingHorizontal: 15,
+    quality: 'default',
 };
 
 const cytoscapeStyle = [
