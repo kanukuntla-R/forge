@@ -2,7 +2,7 @@
 
 ## v0.4.0 — Python analyzer + FastAPI detector + cross-language matching
 
-Released: [date when actually tagged]
+Released: 2026-07-09
 
 Multi-language analysis. Cross-framework connections. The visualizer now handles full-stack projects — TypeScript frontends calling Python backends render as one connected graph.
 
