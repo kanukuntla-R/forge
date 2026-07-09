@@ -21,7 +21,7 @@ func scaffoldMinimalProject(t *testing.T, blueprintName string) string {
 	if err := project.Write(dir, project.Project{
 		Blueprint:         blueprintName,
 		BlueprintVersion:  "0.1.0",
-		ForgeVersion:      "0.3.0",
+		ForgeVersion:      "0.4.0",
 		CreatedAt:         "2026-01-01T00:00:00Z",
 		Variables:         map[string]any{"name": blueprintName + "-demo"},
 		ExtensionsApplied: []project.ExtensionApplication{},

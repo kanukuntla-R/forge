@@ -26,38 +26,46 @@ When these documents conflict with anything else (training data, intuition, etc.
 
 ## Current status
 
-**v0.3 release in progress** — all four v0.3 blueprints shipped; cross-platform builds and tag pending.
+**v0.4 release in progress** — Python analyzer + FastAPI detector + cross-language route matching complete; cross-platform builds and tag pending.
 
-All milestones M1 through M9.4 are complete:
+All milestones M1 through M10.6.6 are complete:
 
-- **M1** (walking skeleton) ✅ — cobra wired, stub subcommands, help text
-- **M2** (render path) ✅ — manifest parsing, template engine, atomic writes, interactive prompts
-- **Path A** (hackathon-app full feature matrix) ✅ — Next.js 14 + Tailwind + shadcn with optional AI/dark-mode/auth/database
-- **M3** (graph emission) ✅ — static knowledge graph from blueprint declaration
-- **M4** (hooks + project marker) ✅ — post-create hooks, `.forge/project.json`
-- **M5** (visualize + json mode) ✅ — initial dashboard scaffolding (now superseded by M8.5)
-- **M6** (forge add) ✅ — extensions, project detection, graph fragment merging
-- **M7** (forge install + polish) ✅ — git-based blueprint installation, v0.1 ship
-- **M8.1** (file walker) ✅ — analyzer scaffolding with ignore patterns
-- **M8.2a-e** (TypeScript analyzer) ✅ — tree-sitter integration, imports, exports, declarations, import resolution
-- **M8.3** (Next.js detector) ✅ — pages, routes, layouts, components, used_by
-- **M8.4** (API call detection) ✅ — fetch/axios/ky detection with route matching
-- **M8.5a-e** (live dashboard) ✅ — server, Files/Routes/Graph views, live updates via file watcher + WebSocket
-- **M8.6a** (polish + branding) ✅ — forwardRef detection, dynamic graph nodes, ASCII banner
-- **M9.1** (blueprint-starter) ✅ — meta-blueprint for creating new blueprints
-- **M9.2** (python-fastapi) ✅ — FastAPI starter with feature toggles
-- **M9.3** (python-cli) ✅ — Typer CLI with hatchling build backend
-- **M9.4** (go-cli) ✅ — cobra + slog CLI with version embedding
+- **M1** (walking skeleton) ✅
+- **M2** (render path) ✅
+- **Path A** (hackathon-app full feature matrix) ✅
+- **M3** (graph emission) ✅
+- **M4** (hooks + project marker) ✅
+- **M5** (visualize + json mode) ✅ — superseded by M8.5
+- **M6** (forge add) ✅
+- **M7** (forge install + polish) ✅ — v0.1 ship
+- **M8.1** (file walker) ✅
+- **M8.2a-e** (TypeScript analyzer) ✅
+- **M8.3** (Next.js detector) ✅
+- **M8.4** (API call detection) ✅
+- **M8.5a-e** (live dashboard) ✅
+- **M8.6a** (polish + branding) ✅ — v0.2 ship
+- **M9.1-M9.5** (blueprint expansion) ✅ — v0.3 ship
+- **M10.1** (Python adapter skeleton) ✅
+- **M10.2** (Python import extraction) ✅
+- **M10.3** (Python declaration extraction) ✅
+- **M10.4** (FastAPI framework detector) ✅
+- **M10.5** (Python HTTP call detection) ✅
+- **M10.5.5** (cross-language route matching) ✅
+- **M10.6** (dashboard visibility for FastAPI) ✅
+- **M10.6.5** (graph layout spacing) ✅
+- **M10.6.6** (cose-bilkent layout) ✅ — pending v0.4 tag
 
-70 commits on `main`. All tests green across 11+ packages including new blueprint tests.
+82 commits on `main`. All tests green across 14 packages including Python analyzer and cross-framework matching tests.
 
-v0.3 ships v0.2's analyzer/dashboard/scaffolding + four new blueprints:
-- `blueprint-starter` — meta-blueprint for creating new blueprints
-- `python-fastapi` — FastAPI starter with optional database/auth/docker/openai/type-check
-- `python-cli` — Typer-based CLI with hatchling build backend
-- `go-cli` — cobra + slog CLI with structured logging
-
-New engine feature: `replace` template function for string substitution (e.g., `{{ .Name | replace "-" "_" }}`).
+v0.4 adds Python analysis alongside existing TypeScript support:
+- Python file parsing via tree-sitter-python
+- Import extraction (all forms including relative, star, aliased)
+- Declaration extraction (functions, classes, module variables with decorators)
+- FastAPI framework detector with prefix resolution and reachability tracking
+- Python HTTP call detection (requests, httpx, urllib) with route matching
+- **Cross-language route matching** — TypeScript pages calling Python backends and vice versa
+- Dashboard visibility for FastAPI (orange router nodes, both frameworks render together)
+- Improved graph layout (cose-bilkent, better spacing for larger projects)
 
 ## Conventions
 
@@ -96,11 +104,11 @@ New engine feature: `replace` template function for string substitution (e.g., `
 
 ## Implementation milestones (from design doc)
 
-All milestones M1 through M9 complete. See "Current status" above for the detailed breakdown.
+All milestones M1 through M10 complete. See "Current status" above for the detailed breakdown.
 
-Post-v0.3 roadmap:
-- **v0.4**: Python analyzer with tree-sitter-python, FastAPI framework detector, dashboard updates for Python conventions
-- **Future**: more framework detectors (Astro, Remix, SvelteKit), database as a first-class concept
+Post-v0.4 roadmap:
+- **v0.5**: Caching layer, more framework detectors (Astro, Remix, SvelteKit, Vue)
+- **Future**: Django/Flask detectors, path-segment templating with skip-unknown-vars mode, monorepo Next.js support (frontend/, web/ subdirectories), client-variable tracking for httpx patterns
 
 ## What forge depends on externally
 

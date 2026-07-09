@@ -1,5 +1,56 @@
 # forge release notes
 
+## v0.4.0 — Python analyzer + FastAPI detector + cross-language matching
+
+Released: [date when actually tagged]
+
+Multi-language analysis. Cross-framework connections. The visualizer now handles full-stack projects — TypeScript frontends calling Python backends render as one connected graph.
+
+### Python analyzer
+
+- **Python file parsing** via tree-sitter-python
+- **Import extraction** — all Python import forms: `import X`, `from X import Y`, relative imports (`from . import`, `from ..models import`), star imports (`from X import *`), aliased imports (`import X as Y`, `from X import Y as Z`), parenthesized multi-line imports
+- **Declaration extraction** — functions (including async), classes (with base classes), module-level variables with decorators; captures decorator source for framework detection
+- **HTTP call detection** — direct calls to `requests.get/post/put/patch/delete`, `httpx.get/post/put/patch/delete`, `urllib.request.urlopen()`. Test files (`test_*.py`, `*_test.py`, files under `tests/`) are excluded from HTTP call analysis.
+
+### FastAPI framework detector
+
+- **Comprehensive route detection** — `@app.<method>()` and `@router.<method>()` decorators for all HTTP verbs (get, post, put, delete, patch, head, options, api_route)
+- **Router prefix resolution** — literal prefixes (`APIRouter(prefix="/users")`) and simple variable prefixes (`PREFIX = "/api/v1"; APIRouter(prefix=PREFIX)`); marked with high or medium confidence
+- **Reachability tracking** — `app.include_router()` calls tracked cross-file; routes marked reachable/unreachable based on registration
+- **Async handler detection** — async and sync FastAPI handlers are distinguished
+- **Path parameters** — `/{user_id}` correctly matched against calls to `/123`
+
+### Cross-language route matching
+
+- **TypeScript calls to FastAPI routes** — Next.js `fetch("http://localhost:8000/products/")` now matches FastAPI `GET /products/` when both are in the same project
+- **Python calls to Next.js routes** — Python `requests.get("http://localhost:3000/api/cart")` matches Next.js `/api/cart`
+- **URL normalization** — local development hosts (`localhost`, `127.0.0.1`, `0.0.0.0`) stripped before matching; external hosts preserved (no false positives with third-party APIs)
+- **Native framework preferred** — TypeScript calls try Next.js routes first; Python calls try FastAPI routes first; cross-framework match only if native fails
+
+### Dashboard updates
+
+- **FastAPI structure rendered** in the graph view alongside Next.js
+- **New node type** — orange hexagons for APIRouter instances
+- **Multi-framework badge** — projects with both frameworks show "nextjs / fastapi" in the header
+- **New filter toggles** — Routers filter, Router inclusion edge filter
+- **Routes view sections** — FastAPI apps, routers, routes, and connections all listed
+- **Layout improvements** — switched to cose-bilkent for better spacing on large graphs; isolated nodes tile cleanly instead of drifting
+
+### Internals
+
+- 9 new commits (M10.1 through M10.6.6)
+- 1 new Go package (`internal/analyzer/parser/python`); cross-framework route matching added to the existing `internal/analyzer` package
+- Comprehensive test coverage across Python parsing, FastAPI detection, and cross-framework matching
+- All packages green
+- Binary size unchanged (~19MB)
+
+### Screenshots
+
+The dashboard now handles full-stack projects — Next.js pages, React components, FastAPI routers and routes all render together with cross-framework connections visible.
+
+---
+
 ## v0.3.0 — Blueprint expansion
 
 Released: 2026-07-03

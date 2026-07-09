@@ -112,6 +112,7 @@ All commands support `--help`. Most support `--json` for structured output.
 - **Atomic writes**: file operations stage-then-rename, so failed scaffolds don't leave half-written state
 - **Embedded + installed blueprints**: ships with 5 blueprints covering Next.js, FastAPI, Python CLI, Go CLI, and meta-blueprint scaffolding. Install more from any git URL.
 - **Analysis + dashboard**: static analysis of TypeScript/JavaScript projects with a live-updating dashboard showing files, routes, components, and API connections
+- **Multi-language analysis**: parses TypeScript/JavaScript (Next.js) and Python (FastAPI) codebases. Cross-language route matching connects frontend fetches to backend endpoints.
 
 ## Built-in blueprints
 
@@ -142,6 +143,8 @@ Feature toggles:
 - `--var with_openai=true` — OpenAI and Anthropic SDK setup + example `/chat` endpoint
 - `--var with_type_check=true` — mypy strict configuration
 
+Projects scaffolded with `python-fastapi` (or any FastAPI project) can be analyzed with `forge visualize` — routes, routers, and cross-language connections render in the graph view.
+
 ### python-cli
 
 A minimal Python CLI starter using Typer for command definitions, uv for dependency management, hatchling as the build backend, and pytest with Typer's CliRunner.
@@ -160,14 +163,14 @@ Blueprints are directories with a manifest, a template tree, and optional extens
 
 ## Status
 
-v0.3 ships an expanded blueprint library (blueprint-starter, python-fastapi, python-cli, go-cli). The roadmap beyond v0.3 includes:
+v0.4 adds Python analyzer + FastAPI detector + cross-language route matching. The roadmap beyond v0.4 includes:
 
-- **Python analyzer** — tree-sitter-python + FastAPI framework detector + dashboard updates for Python conventions
-- **Caching** — content-hash-based caching for faster re-analysis
-- **More framework detectors** — Astro, Remix, SvelteKit, Vue
-- **Database as a first-class concept** — pluggable database providers as installable extensions
+- **Caching layer** — content-hash-based caching for faster re-analysis on large projects
+- **More framework detectors** — Astro, Remix, SvelteKit, Vue on the TypeScript side; Django, Flask on the Python side
+- **Monorepo support** — Next.js detection in nested directories (frontend/, web/, client/)
+- **Enhanced client tracking** — module-level and function-scope client variables for httpx and requests
 
-See [`docs/forge-design.md`](docs/forge-design.md), [`docs/forge-analyzer-design.md`](docs/forge-analyzer-design.md), and [`docs/blueprint-authoring.md`](docs/blueprint-authoring.md) for design notes. See [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md) for what shipped in v0.3.
+See [`docs/forge-design.md`](docs/forge-design.md), [`docs/forge-analyzer-design.md`](docs/forge-analyzer-design.md), and [`docs/blueprint-authoring.md`](docs/blueprint-authoring.md) for design notes.
 
 ## License
 

@@ -7,7 +7,7 @@ Items here are candidates for future milestones; delete when picked up.
 
 ## Future work
 
-### Path-segment templating in meta-blueprints (v0.4+ candidate)
+### Path-segment templating in meta-blueprints (v0.5 candidate)
 
 **Problem**: When a blueprint produces another blueprint (meta-blueprint), the render engine
 processes ALL `{{ }}` expressions in template file paths and `.tmpl` file contents during the
@@ -28,20 +28,68 @@ path-segment expansion. Possible approaches:
 
 **References**: `docs/blueprint-authoring.md` §Dynamic extension filenames, `blueprints/blueprint-starter/template/extensions/page/template/page.html` (comment block)
 
-**Milestone**: v0.4 blueprint authoring improvements
+**Milestone**: v0.5 blueprint authoring improvements
 
 ---
 
-### Additional blueprints (v0.3 / v0.4)
+### Client-variable tracking for HTTP call detection (v0.5 candidate)
 
-- `go-cli` — standard Go CLI with Cobra, goreleaser config, testable `RunE` pattern
+**Problem**: M10.5's Python HTTP call detector only recognizes direct calls like
+`requests.get(...)` or `httpx.get(...)`. It doesn't track client instances assigned to
+variables, so patterns like:
+
+```python
+client = httpx.AsyncClient()
+await client.get("/users")
+```
+
+or nested context-manager forms:
+
+```python
+async with httpx.AsyncClient() as client:
+    await client.get("/users")
+```
+
+aren't detected, since `client.get(...)` doesn't syntactically reference `httpx` or `requests`
+directly.
+
+**Scope**:
+- Module-level and function-scope client variable tracking
+- `async with X() as client:` binding
+- Deferred from M10.5 to keep the first HTTP-call-detection milestone scoped to the common
+  direct-call case
+
+**Milestone**: v0.5 candidate
+
+---
+
+### Next.js detector monorepo support (v0.5 candidate)
+
+**Problem**: The Next.js framework detector assumes the project root is also the Next.js
+root. Monorepos that nest the Next.js app under `frontend/`, `web/`, or `client/` aren't
+detected.
+
+**Milestone**: v0.5 candidate
+
+---
+
+### More framework detectors (v0.5 candidate)
+
+- TypeScript side: Astro, Remix, SvelteKit, Vue
+- Python side: Django, Flask
+
+---
+
+### Additional blueprints
+
 - `astro-site` — Astro + content collections (framework detector already handles routes)
 - `openclaw-skill` — forge skill for the OpenClaw agent framework
 
 ---
 
-### Caching with content hashes (v0.3)
+### Caching with content hashes (v0.5 candidate)
 
-Blueprint template files are re-read and re-rendered on every scaffold. For large blueprints
-or agent loops calling forge repeatedly, a content-hash cache on the rendered output would
-reduce disk I/O. Planned for v0.3.
+Blueprint template files are re-read and re-rendered on every scaffold, and analyzer runs
+re-parse every file on every `forge visualize` refresh. For large projects or agent loops
+calling forge repeatedly, a content-hash cache on rendered/parsed output would reduce disk
+I/O and CPU. Deferred from v0.3; still not started.

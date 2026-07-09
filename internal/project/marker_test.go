@@ -15,7 +15,7 @@ func sampleProject() project.Project {
 	return project.Project{
 		Blueprint:        "hackathon-app",
 		BlueprintVersion: "0.1.0",
-		ForgeVersion:     "0.3.0",
+		ForgeVersion:     "0.4.0",
 		CreatedAt:        "2026-06-11T00:00:00Z",
 		Variables: map[string]any{
 			"name":    "demo",
