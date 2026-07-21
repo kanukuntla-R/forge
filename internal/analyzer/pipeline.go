@@ -34,5 +34,10 @@ func AnalyzeProject(projectRoot string) (*ProjectAnalysis, []error, error) {
 		}
 	}
 
+	// Pass 3: database detection, runs after frameworks so future work can
+	// correlate routes with the tables they touch.
+	databaseDetectors := []DatabaseDetector{} // no real detectors until M11.2/M11.3
+	result.Analysis.Databases = DetectDatabases(result.Analysis, databaseDetectors)
+
 	return result.Analysis, result.Errors, nil
 }
