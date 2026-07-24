@@ -91,11 +91,22 @@ func (a *typescriptAdapter) Analyze(path string, content []byte) (*FileAnalysis,
 		}
 	}
 
+	rawMethodChains := tree.MethodChains()
+	methodChains := make([]MethodChain, len(rawMethodChains))
+	for i, mc := range rawMethodChains {
+		segments := make([]MethodChainSegment, len(mc.Calls))
+		for j, seg := range mc.Calls {
+			segments[j] = MethodChainSegment{Name: seg.Name, Args: seg.Args}
+		}
+		methodChains[i] = MethodChain{Root: mc.Root, Calls: segments, Line: mc.Line}
+	}
+
 	return &FileAnalysis{
 		Imports:      imports,
 		Exports:      exports,
 		Declarations: decls,
 		Calls:        calls,
 		ChainedCalls: chainedCalls,
+		MethodChains: methodChains,
 	}, nil
 }

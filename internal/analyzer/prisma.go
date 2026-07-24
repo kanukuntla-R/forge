@@ -128,24 +128,6 @@ var commonPrismaClientNames = map[string]bool{
 	"client": true,
 }
 
-// isPrismaTestFile mirrors the exclusion used for HTTP call detection: skip
-// *.test.ts(x)/*.spec.ts(x) and anything under __tests__/, test/, tests/.
-func isPrismaTestFile(path string) bool {
-	base := filepath.Base(path)
-	for _, suf := range []string{".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"} {
-		if strings.HasSuffix(base, suf) {
-			return true
-		}
-	}
-	slashed := "/" + filepath.ToSlash(path) + "/"
-	for _, seg := range []string{"/__tests__/", "/test/", "/tests/"} {
-		if strings.Contains(slashed, seg) {
-			return true
-		}
-	}
-	return false
-}
-
 // matchPrismaTable finds the schema table matching a call's model property.
 // Prisma exposes PascalCase models as camelCase client properties (User ->
 // prisma.user, BlogPost -> prisma.blogPost), so the match is case-insensitive.
@@ -170,7 +152,7 @@ func (p *prismaDetector) MatchQueries(analysis *ProjectAnalysis, _ map[string][]
 	var queries []DatabaseQuery
 
 	for _, file := range analysis.Files {
-		if file.Language != "typescript" || isPrismaTestFile(file.Path) {
+		if file.Language != "typescript" || isORMTestFile(file.Path) {
 			continue
 		}
 		for _, call := range file.ChainedCalls {

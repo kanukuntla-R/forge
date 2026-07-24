@@ -16,6 +16,7 @@ type FileAnalysis struct {
 	Calls        []Call
 	ModuleCalls  []ModuleCall
 	ChainedCalls []ChainedCall
+	MethodChains []MethodChain
 	Metadata     map[string]any
 }
 
@@ -75,4 +76,22 @@ type ChainedCall struct {
 	Property string `json:"property"`
 	Method   string `json:"method"`
 	Line     int    `json:"line"`
+}
+
+// MethodChainSegment is one link in a flattened fluent chain, e.g. "select"
+// or "from" in db.select().from(users). Args holds each call argument's raw
+// source text; nil for property-only segments or zero-arg calls.
+type MethodChainSegment struct {
+	Name string   `json:"name"`
+	Args []string `json:"args,omitempty"`
+}
+
+// MethodChain represents a fluent chain of calls/property accesses rooted at
+// a single identifier, e.g. db.select().from(users) or db.query.users.findMany().
+// Unlike ChainedCall, chain depth and call arity are unconstrained — needed
+// for ORMs like Drizzle whose query shape isn't a fixed a.b.c() call.
+type MethodChain struct {
+	Root  string               `json:"root"`
+	Calls []MethodChainSegment `json:"calls"`
+	Line  int                  `json:"line"`
 }

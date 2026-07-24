@@ -55,5 +55,5 @@ func AnalyzeProject(projectRoot string) (*ProjectAnalysis, []error, error) {
 
 // defaultDatabaseDetectors returns the production set of database detectors.
 func defaultDatabaseDetectors() []DatabaseDetector {
-	return []DatabaseDetector{NewPrismaDetector()}
+	return []DatabaseDetector{NewPrismaDetector(), NewDrizzleDetector()}
 }
