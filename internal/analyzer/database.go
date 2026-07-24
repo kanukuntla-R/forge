@@ -39,14 +39,16 @@ type DatabaseDetector interface {
 
 	// MatchQueries examines file analyses for query calls to tables in the schema.
 	// Returns queries matched to specific tables. This runs after Detect when
-	// we know which tables exist.
-	MatchQueries(analysis *ProjectAnalysis, schema *DatabaseSchema) []DatabaseQuery
+	// we know which tables exist. files holds each analyzed file's raw source,
+	// keyed by the same relative path used in FileInfo.Path, for detectors that
+	// need to inspect source text beyond what FileAnalysis captured.
+	MatchQueries(analysis *ProjectAnalysis, files map[string][]byte, schema *DatabaseSchema) []DatabaseQuery
 }
 
 // DetectDatabases runs the given detectors against analysis and returns the
 // detected schemas. Queries returned by each detector's MatchQueries are
 // distributed back onto the matching FileInfo entries in analysis.Files.
-func DetectDatabases(analysis *ProjectAnalysis, detectors []DatabaseDetector) []DatabaseSchema {
+func DetectDatabases(analysis *ProjectAnalysis, files map[string][]byte, detectors []DatabaseDetector) []DatabaseSchema {
 	var schemas []DatabaseSchema
 
 	for _, detector := range detectors {
@@ -55,7 +57,7 @@ func DetectDatabases(analysis *ProjectAnalysis, detectors []DatabaseDetector) []
 			continue
 		}
 
-		queries := detector.MatchQueries(analysis, schema)
+		queries := detector.MatchQueries(analysis, files, schema)
 		for _, query := range queries {
 			for i := range analysis.Files {
 				if analysis.Files[i].Path == query.File {

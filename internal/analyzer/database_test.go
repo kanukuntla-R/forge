@@ -21,7 +21,7 @@ func (s *stubDatabaseDetector) Detect(_ *analyzer.ProjectAnalysis) *analyzer.Dat
 	return s.schema
 }
 
-func (s *stubDatabaseDetector) MatchQueries(_ *analyzer.ProjectAnalysis, _ *analyzer.DatabaseSchema) []analyzer.DatabaseQuery {
+func (s *stubDatabaseDetector) MatchQueries(_ *analyzer.ProjectAnalysis, _ map[string][]byte, _ *analyzer.DatabaseSchema) []analyzer.DatabaseQuery {
 	return s.queries
 }
 
@@ -64,7 +64,7 @@ func TestDatabaseTable_InferredFlag(t *testing.T) {
 
 func TestDetectDatabases_NoDetectors(t *testing.T) {
 	analysis := &analyzer.ProjectAnalysis{}
-	schemas := analyzer.DetectDatabases(analysis, nil)
+	schemas := analyzer.DetectDatabases(analysis, nil, nil)
 	if len(schemas) != 0 {
 		t.Errorf("expected no schemas, got %d", len(schemas))
 	}
@@ -73,7 +73,7 @@ func TestDetectDatabases_NoDetectors(t *testing.T) {
 func TestDetectDatabases_StubReturnsNil(t *testing.T) {
 	analysis := &analyzer.ProjectAnalysis{}
 	detectors := []analyzer.DatabaseDetector{&stubDatabaseDetector{}}
-	schemas := analyzer.DetectDatabases(analysis, detectors)
+	schemas := analyzer.DetectDatabases(analysis, nil, detectors)
 	if len(schemas) != 0 {
 		t.Errorf("expected no schemas from nil-returning stub, got %d", len(schemas))
 	}
@@ -83,7 +83,7 @@ func TestDetectDatabases_StubWithSchema(t *testing.T) {
 	analysis := &analyzer.ProjectAnalysis{}
 	schema := &analyzer.DatabaseSchema{Type: "stub", Confidence: "low"}
 	detectors := []analyzer.DatabaseDetector{&stubDatabaseDetector{schema: schema}}
-	schemas := analyzer.DetectDatabases(analysis, detectors)
+	schemas := analyzer.DetectDatabases(analysis, nil, detectors)
 	if len(schemas) != 1 || schemas[0].Type != "stub" {
 		t.Errorf("expected one stub schema, got %+v", schemas)
 	}
@@ -102,7 +102,7 @@ func TestDetectDatabases_QueriesDistributedToFiles(t *testing.T) {
 	}
 	detectors := []analyzer.DatabaseDetector{&stubDatabaseDetector{schema: schema, queries: queries}}
 
-	analyzer.DetectDatabases(analysis, detectors)
+	analyzer.DetectDatabases(analysis, nil, detectors)
 
 	if len(analysis.Files[0].DatabaseQueries) != 0 {
 		t.Errorf("expected src/a.ts to have no queries, got %+v", analysis.Files[0].DatabaseQueries)

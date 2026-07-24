@@ -32,6 +32,7 @@ type FileInfo struct {
 	Declarations    []Declaration   `json:"declarations,omitempty"`
 	Calls           []Call          `json:"calls,omitempty"`
 	ModuleCalls     []ModuleCall    `json:"module_calls,omitempty"`
+	ChainedCalls    []ChainedCall   `json:"chained_calls,omitempty"`
 	Metadata        map[string]any  `json:"metadata,omitempty"`
 	DatabaseQueries []DatabaseQuery `json:"database_queries,omitempty"`
 }

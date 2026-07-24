@@ -178,6 +178,7 @@ func Walk(projectRoot string, registry *Registry) (*WalkResult, error) {
 			Declarations: fa.Declarations,
 			Calls:        fa.Calls,
 			ModuleCalls:  fa.ModuleCalls,
+			ChainedCalls: fa.ChainedCalls,
 			Metadata:     fa.Metadata,
 		})
 		return nil

@@ -80,10 +80,22 @@ func (a *typescriptAdapter) Analyze(path string, content []byte) (*FileAnalysis,
 		}
 	}
 
+	rawChainedCalls := tree.ChainedCalls()
+	chainedCalls := make([]ChainedCall, len(rawChainedCalls))
+	for i, c := range rawChainedCalls {
+		chainedCalls[i] = ChainedCall{
+			Object:   c.Object,
+			Property: c.Property,
+			Method:   c.Method,
+			Line:     c.Line,
+		}
+	}
+
 	return &FileAnalysis{
 		Imports:      imports,
 		Exports:      exports,
 		Declarations: decls,
 		Calls:        calls,
+		ChainedCalls: chainedCalls,
 	}, nil
 }

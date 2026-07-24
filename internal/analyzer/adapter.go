@@ -15,6 +15,7 @@ type FileAnalysis struct {
 	Declarations []Declaration
 	Calls        []Call
 	ModuleCalls  []ModuleCall
+	ChainedCalls []ChainedCall
 	Metadata     map[string]any
 }
 
@@ -22,8 +23,8 @@ type FileAnalysis struct {
 type Import struct {
 	Source     string   `json:"source"`
 	Resolved   string   `json:"resolved,omitempty"`
-	Names      []string `json:"names"`            // no omitempty: [] is meaningful for side-effect imports
-	Alias      string   `json:"alias,omitempty"`  // set for `import X as Y` (top-level alias only)
+	Names      []string `json:"names"`                 // no omitempty: [] is meaningful for side-effect imports
+	Alias      string   `json:"alias,omitempty"`       // set for `import X as Y` (top-level alias only)
 	IsRelative bool     `json:"is_relative,omitempty"` // true for Python relative imports (from . / from .. )
 	IsStar     bool     `json:"is_star,omitempty"`     // true for `from X import *`
 	External   bool     `json:"external,omitempty"`
@@ -64,4 +65,14 @@ type ModuleCall struct {
 	FunctionRepr string `json:"function"` // the callable expression, e.g. "app.include_router"
 	ArgsRepr     string `json:"args"`     // first positional argument's source text; "" if none
 	Line         int    `json:"line"`
+}
+
+// ChainedCall represents a call of the shape object.property.method(...),
+// e.g. prisma.user.findMany(). Extraction is ORM-agnostic — database
+// detectors interpret Object/Property/Method as needed.
+type ChainedCall struct {
+	Object   string `json:"object"`
+	Property string `json:"property"`
+	Method   string `json:"method"`
+	Line     int    `json:"line"`
 }
