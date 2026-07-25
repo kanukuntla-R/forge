@@ -47,8 +47,9 @@ function getCallTarget(apiCall, files) {
 }
 
 function buildGraphData(analysis) {
-    const nextjs  = analysis.frameworks && analysis.frameworks.nextjs;
-    const fastapi = analysis.frameworks && analysis.frameworks.fastapi;
+    const nextjs    = analysis.frameworks && analysis.frameworks.nextjs;
+    const fastapi   = analysis.frameworks && analysis.frameworks.fastapi;
+    const databases = analysis.databases || [];
 
     const nodes   = [];
     const edges   = [];
@@ -58,12 +59,79 @@ function buildGraphData(analysis) {
     // are built — a cross-framework api_call edge (e.g. a Next.js page
     // calling a FastAPI route) needs the OTHER framework's node to already
     // be in nodeIds, regardless of which framework's edges are built first.
+    // Same reasoning extends to database tables: a query edge needs its
+    // table node to exist, so table nodes are added alongside framework nodes.
     if (nextjs) addNextJSNodes(nextjs, nodes, nodeIds);
     if (fastapi) addFastAPINodes(fastapi, nodes, nodeIds);
+    if (databases.length > 0) addDatabaseNodes(databases, nodes, nodeIds);
     if (nextjs) addNextJSEdges(nextjs, analysis, edges, nodeIds);
     if (fastapi) addFastAPIEdges(fastapi, analysis, edges, nodeIds);
+    if (databases.length > 0) addDatabaseEdges(analysis, edges, nodeIds);
 
     return { nodes, edges };
+}
+
+function addDatabaseNodes(databases, nodes, nodeIds) {
+    for (const db of databases) {
+        for (const table of (db.tables || [])) {
+            const id = 'db-table:' + db.type + ':' + table.name;
+            if (!nodeIds.has(id)) {
+                nodes.push({
+                    data: { id, label: table.name, type: 'table', file: table.file, orm: db.type, framework: 'database' }
+                });
+                nodeIds.add(id);
+            }
+        }
+    }
+}
+
+// findQuerySourceNode resolves the file that issued a query to its graph
+// node id. Next.js pages/routes/components use the bare file path as their
+// node id; FastAPI uses prefixed ids (see addFastAPINodes). If the file
+// doesn't own any graph node (e.g. a plain db-helper module with no
+// page/route/component of its own), the query has no edge — dropped rather
+// than inventing a generic "file" node type. Revisit if that gap shows up
+// in practice (v0.5.1).
+function findQuerySourceNode(filePath, analysis, nodeIds) {
+    if (nodeIds.has(filePath)) return filePath;
+
+    const fastapi = analysis.frameworks && analysis.frameworks.fastapi;
+    if (fastapi) {
+        const route = (fastapi.routes || []).find(r => r.file === filePath);
+        if (route) {
+            const id = 'fastapi-route:' + route.method + ':' + route.path;
+            if (nodeIds.has(id)) return id;
+        }
+        const app = (fastapi.apps || []).find(a => a.file === filePath);
+        if (app) {
+            const id = 'fastapi-app:' + app.file;
+            if (nodeIds.has(id)) return id;
+        }
+    }
+    return null;
+}
+
+function addDatabaseEdges(analysis, edges, nodeIds) {
+    let edgeIdx = 0;
+    for (const file of (analysis.files || [])) {
+        for (const query of (file.database_queries || [])) {
+            const targetId = 'db-table:' + query.orm + ':' + query.table;
+            if (!nodeIds.has(targetId)) continue;
+            const sourceId = findQuerySourceNode(file.path, analysis, nodeIds);
+            if (!sourceId) continue;
+            edges.push({
+                data: {
+                    id: 'query-' + (edgeIdx++),
+                    source: sourceId,
+                    target: targetId,
+                    type: 'query',
+                    operation: query.operation.toUpperCase(),
+                    confidence: query.confidence,
+                    orm: query.orm,
+                }
+            });
+        }
+    }
 }
 
 function addNextJSNodes(nextjs, nodes, nodeIds) {
@@ -369,6 +437,24 @@ const cytoscapeStyle = [
         }
     },
     {
+        selector: 'node[type="table"]',
+        style: {
+            'shape':        'ellipse',
+            'background-color': '#facc15',
+            'label':        'data(label)',
+            'text-valign':  'center',
+            'text-halign':  'center',
+            'color':        '#1c1917',
+            'font-size':    '11px',
+            'font-family':  'monospace',
+            'font-weight':  'bold',
+            'width':        60,
+            'height':       40,
+            'border-width': 2,
+            'border-color': '#eab308',
+        }
+    },
+    {
         selector: 'edge[type="api_call"]',
         style: {
             'width':                  2,
@@ -413,6 +499,22 @@ const cytoscapeStyle = [
             'target-arrow-color': '#f97316',
             'target-arrow-shape': 'triangle',
             'curve-style':        'bezier',
+        }
+    },
+    {
+        selector: 'edge[type="query"]',
+        style: {
+            'width':                   2,
+            'line-color':              '#eab308',
+            'target-arrow-color':      '#eab308',
+            'target-arrow-shape':      'triangle',
+            'curve-style':             'bezier',
+            'label':                   'data(operation)',
+            'font-size':               '9px',
+            'color':                   '#eab308',
+            'text-background-color':   '#fff',
+            'text-background-opacity': 1,
+            'text-background-padding': '2px',
         }
     },
     {
@@ -528,9 +630,20 @@ function CallRow({ call }) {
     );
 }
 
+function DatabaseQueryFileRow({ query }) {
+    const cls = CONFIDENCE_CLASS[query.confidence] || 'bg-gray-100 text-gray-600';
+    return React.createElement('div', { className: 'flex items-center gap-2 py-0.5 text-sm' },
+        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-gray-700' }, query.orm + '.' + query.table),
+        React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-mono' }, query.operation.toUpperCase()),
+        React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded ' + cls }, query.confidence),
+        React.createElement('span', { className: 'text-gray-300 text-xs' }, 'line ' + query.line)
+    );
+}
+
 // ── FileDetails ───────────────────────────────────────────────────────────────
 
-function FileDetails({ file, onNavigate }) {
+function FileDetails({ file, onNavigate, showDatabases }) {
     if (!file) {
         return React.createElement('div', {
             className: 'flex-1 flex items-center justify-center flex-col gap-1 text-sm'
@@ -540,10 +653,11 @@ function FileDetails({ file, onNavigate }) {
         );
     }
 
-    const imports      = file.imports      || [];
-    const exports_     = file.exports      || [];
-    const declarations = file.declarations || [];
-    const calls        = file.calls        || [];
+    const imports        = file.imports          || [];
+    const exports_       = file.exports          || [];
+    const declarations   = file.declarations     || [];
+    const calls          = file.calls            || [];
+    const databaseQueries = file.database_queries || [];
     const none = React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'None');
 
     return React.createElement('div', { className: 'p-6 max-w-3xl' },
@@ -570,6 +684,11 @@ function FileDetails({ file, onNavigate }) {
         React.createElement(DetailSection, { title: 'API Calls', count: calls.length },
             calls.length > 0
                 ? calls.map((call, i) => React.createElement(CallRow, { key: i, call }))
+                : none
+        ),
+        showDatabases && React.createElement(DetailSection, { title: 'Database Queries', count: databaseQueries.length },
+            databaseQueries.length > 0
+                ? databaseQueries.map((q, i) => React.createElement(DatabaseQueryFileRow, { key: i, query: q }))
                 : none
         )
     );
@@ -647,7 +766,7 @@ function FileTree({ tree, expandedDirs, onToggle, selectedFile, onSelectFile }) 
 
 // ── FilesView ─────────────────────────────────────────────────────────────────
 
-function FilesView({ tree, expandedDirs, onToggle, selectedFile, onSelectFile, selectedFileInfo, onNavigate }) {
+function FilesView({ tree, expandedDirs, onToggle, selectedFile, onSelectFile, selectedFileInfo, onNavigate, showDatabases }) {
     return React.createElement('div', { className: 'flex flex-1 overflow-hidden' },
         React.createElement('div', {
             className: 'w-72 flex-shrink-0 border-r bg-white overflow-y-auto'
@@ -657,7 +776,7 @@ function FilesView({ tree, expandedDirs, onToggle, selectedFile, onSelectFile, s
             })
         ),
         React.createElement('div', { className: 'flex-1 overflow-y-auto bg-white' },
-            React.createElement(FileDetails, { file: selectedFileInfo, onNavigate })
+            React.createElement(FileDetails, { file: selectedFileInfo, onNavigate, showDatabases })
         )
     );
 }
@@ -785,10 +904,56 @@ function FastAPIRoutesSection({ routes, onNavigateToFile }) {
     );
 }
 
+function DatabaseTableRow({ table, orm, onNavigateToFile }) {
+    return React.createElement('div', { className: 'flex items-center gap-2 py-1 text-sm flex-wrap' },
+        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-gray-800 w-48 flex-shrink-0' }, table.name),
+        React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700' }, orm),
+        React.createElement(ClickableFile, { path: table.file, onNavigate: onNavigateToFile })
+    );
+}
+
+function DatabaseTablesSection({ databases, onNavigateToFile }) {
+    const rows = [];
+    for (const db of databases) {
+        for (const table of (db.tables || [])) rows.push({ table, orm: db.type });
+    }
+    return React.createElement(DetailSection, { title: 'Database Tables', count: rows.length },
+        rows.length > 0
+            ? rows.map((r, i) => React.createElement(DatabaseTableRow, { key: i, table: r.table, orm: r.orm, onNavigateToFile }))
+            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No tables detected.')
+    );
+}
+
+function DatabaseQueryRow({ query, onNavigateToFile }) {
+    const confCls = CONFIDENCE_CLASS[query.confidence] || 'bg-gray-100 text-gray-600';
+    return React.createElement('div', { className: 'flex items-center gap-2 py-1 text-sm flex-wrap' },
+        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
+        React.createElement(ClickableFile, { path: query.file, onNavigate: onNavigateToFile }),
+        React.createElement('span', { className: 'text-gray-400' }, '→'),
+        React.createElement('span', { className: 'font-mono text-gray-700' }, query.orm + '.' + query.table),
+        React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-mono' }, query.operation.toUpperCase()),
+        React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded ' + confCls }, query.confidence)
+    );
+}
+
+function DatabaseQueriesSection({ files, onNavigateToFile }) {
+    const rows = [];
+    for (const file of files) {
+        for (const query of (file.database_queries || [])) rows.push({ ...query, file: file.path });
+    }
+    return React.createElement(DetailSection, { title: 'Database Queries', count: rows.length },
+        rows.length > 0
+            ? rows.map((r, i) => React.createElement(DatabaseQueryRow, { key: i, query: r, onNavigateToFile }))
+            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No database queries detected.')
+    );
+}
+
 function RoutesView({ analysis, onNavigateToFile }) {
-    const nextjs  = analysis.frameworks && analysis.frameworks.nextjs;
-    const fastapi = analysis.frameworks && analysis.frameworks.fastapi;
-    if (!nextjs && !fastapi) {
+    const nextjs    = analysis.frameworks && analysis.frameworks.nextjs;
+    const fastapi   = analysis.frameworks && analysis.frameworks.fastapi;
+    const databases = analysis.databases || [];
+    if (!nextjs && !fastapi && databases.length === 0) {
         return React.createElement('div', {
             className: 'flex-1 flex items-center justify-center p-8 text-gray-400 text-sm text-center'
         }, 'No framework detected. Routes view is currently available for Next.js and FastAPI projects.');
@@ -810,6 +975,8 @@ function RoutesView({ analysis, onNavigateToFile }) {
                 title: 'FastAPI Connections',
                 emptyMessage: 'No client-to-server calls detected in this project.',
             }),
+            databases.length > 0 && React.createElement(DatabaseTablesSection, { databases, onNavigateToFile }),
+            databases.length > 0 && React.createElement(DatabaseQueriesSection, { files: analysis.files || [], onNavigateToFile }),
         )
     );
 }
@@ -823,12 +990,14 @@ function GraphView({ analysis, onNavigateToFile }) {
     const [showImports,  setShowImports]  = useState(false);
     const [showUsage,    setShowUsage]    = useState(false);
     const [showRouterInclusion, setShowRouterInclusion] = useState(true);
+    const [showQueries, setShowQueries] = useState(true);
     const [nodeTypeFilter, setNodeTypeFilter] = useState({
-        page: true, route: true, component: true, router: true,
+        page: true, route: true, component: true, router: true, table: true,
     });
 
-    const nextjs  = analysis.frameworks && analysis.frameworks.nextjs;
-    const fastapi = analysis.frameworks && analysis.frameworks.fastapi;
+    const nextjs    = analysis.frameworks && analysis.frameworks.nextjs;
+    const fastapi   = analysis.frameworks && analysis.frameworks.fastapi;
+    const databases = analysis.databases || [];
     const hasData = !!(nextjs && (
         (nextjs.pages      || []).length > 0 ||
         (nextjs.routes     || []).length > 0 ||
@@ -837,7 +1006,7 @@ function GraphView({ analysis, onNavigateToFile }) {
         (fastapi.apps    || []).length > 0 ||
         (fastapi.routers || []).length > 0 ||
         (fastapi.routes  || []).length > 0
-    ));
+    )) || databases.length > 0;
 
     // Initialize cytoscape; re-run only if analysis changes.
     useEffect(() => {
@@ -897,7 +1066,8 @@ function GraphView({ analysis, onNavigateToFile }) {
         cyRef.current.edges('[type="import"]').style('display',   showImports  ? 'element' : 'none');
         cyRef.current.edges('[type="usage"]').style('display',    showUsage    ? 'element' : 'none');
         cyRef.current.edges('[type="router_inclusion"]').style('display', showRouterInclusion ? 'element' : 'none');
-    }, [showApiCalls, showImports, showUsage, showRouterInclusion]);
+        cyRef.current.edges('[type="query"]').style('display', showQueries ? 'element' : 'none');
+    }, [showApiCalls, showImports, showUsage, showRouterInclusion, showQueries]);
 
     // Sync node visibility with type filter.
     useEffect(() => {
@@ -924,6 +1094,7 @@ function GraphView({ analysis, onNavigateToFile }) {
                 makeToggle('Imports',   '#9ca3af', showImports,  () => setShowImports(v => !v)),
                 makeToggle('Usage',     '#a78bfa', showUsage,    () => setShowUsage(v => !v)),
                 makeToggle('Router inclusion', '#f97316', showRouterInclusion, () => setShowRouterInclusion(v => !v)),
+                databases.length > 0 && makeToggle('Queries', '#eab308', showQueries, () => setShowQueries(v => !v)),
             ),
             React.createElement('div', { className: 'flex items-center gap-2 ml-4' },
                 React.createElement('span', { className: 'text-gray-500 font-medium' }, 'Show:'),
@@ -935,6 +1106,8 @@ function GraphView({ analysis, onNavigateToFile }) {
                     () => setNodeTypeFilter(p => ({ ...p, component: !p.component }))),
                 makeToggle('Routers',    '#f97316', nodeTypeFilter.router,
                     () => setNodeTypeFilter(p => ({ ...p, router:    !p.router }))),
+                databases.length > 0 && makeToggle('Tables', '#facc15', nodeTypeFilter.table,
+                    () => setNodeTypeFilter(p => ({ ...p, table: !p.table }))),
             ),
             React.createElement('div', { className: 'ml-auto text-gray-400 text-xs' },
                 'Click to highlight · Double-click to open in Files'
@@ -1126,6 +1299,7 @@ function App() {
 
     const tree = buildTree(analysis.files);
     const selectedFileInfo = analysis.files.find(f => f.path === selectedFile) || null;
+    const showDatabases = !!(analysis.databases && analysis.databases.length > 0);
 
     return React.createElement('div', { className: 'h-screen flex flex-col bg-gray-50' },
         React.createElement(Header, { analysis, lastUpdate }),
@@ -1138,6 +1312,7 @@ function App() {
                 onSelectFile: setSelectedFile,
                 selectedFileInfo,
                 onNavigate: handleNavigate,
+                showDatabases,
             })
             : currentView === 'routes'
                 ? React.createElement(RoutesView, {
