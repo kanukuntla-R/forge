@@ -1189,7 +1189,7 @@ function Tabs({ currentView, onSwitchView }) {
 
 function Header({ analysis, lastUpdate, themeMode, onSelectTheme }) {
     const { project, files } = analysis;
-    const fw = project.frameworks || [];
+    const fw = (project.frameworks || []).concat((analysis.databases || []).map(db => db.type));
     const [justUpdated, setJustUpdated] = useState(false);
 
     useEffect(() => {
