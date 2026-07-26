@@ -2,7 +2,7 @@
 
 ## v0.5.0 — Database detection + theme switcher
 
-Released: [date when actually tagged]
+Released: 2026-07-26
 
 Database awareness. See your Prisma and Drizzle tables in the graph, connected to the routes and pages that query them. Plus a proper theme switcher for the dashboard.
 
