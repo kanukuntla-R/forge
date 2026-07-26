@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useLayoutEffect, useRef } = React;
 
 const THEME_STORAGE_KEY = 'forge-theme';
 const THEME_MODES = ['light', 'dark', 'auto'];
@@ -1255,7 +1255,7 @@ function App() {
         localStorage.setItem(THEME_STORAGE_KEY, themeMode);
     }, [themeMode]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (effectiveTheme === 'dark') {
             document.documentElement.setAttribute('data-theme', 'dark');
         } else {
