@@ -1,5 +1,8 @@
 const { useState, useEffect, useRef } = React;
 
+const THEME_STORAGE_KEY = 'forge-theme';
+const THEME_MODES = ['light', 'dark', 'auto'];
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildTree(files) {
@@ -365,12 +368,33 @@ const coseLayoutOptions = {
     quality: 'default',
 };
 
-const cytoscapeStyle = [
+// Reads current CSS custom property values off :root / [data-theme="dark"].
+// Called at cytoscape init and whenever the theme changes, so styles always
+// reflect whichever theme is active at that moment.
+function getThemeColors() {
+    const s = getComputedStyle(document.documentElement);
+    const v = name => s.getPropertyValue(name).trim();
+    return {
+        bg: v('--bg'),
+        panel: v('--panel'),
+        nodePage: v('--node-page'), nodeRoute: v('--node-route'),
+        nodeRouter: v('--node-router'), nodeComponent: v('--node-component'),
+        nodeTable: v('--node-table'), nodeTableBorder: v('--node-table-border'),
+        edgeApi: v('--edge-api'), edgeImport: v('--edge-import'),
+        edgeUsage: v('--edge-usage'), edgeRouter: v('--edge-router'),
+        edgeQuery: v('--edge-query'),
+    };
+}
+
+// Cytoscape doesn't read CSS custom properties itself — its style array needs
+// resolved color values, so this rebuilds it from getThemeColors() output.
+function buildCytoscapeStyle(c) {
+    return [
     {
         selector: 'node[type="page"]',
         style: {
             'shape':        'round-rectangle',
-            'background-color': '#3b82f6',
+            'background-color': c.nodePage,
             'label':        'data(label)',
             'color':        '#fff',
             'text-valign':  'center',
@@ -387,7 +411,7 @@ const cytoscapeStyle = [
         selector: 'node[type="route"]',
         style: {
             'shape':        'hexagon',
-            'background-color': '#10b981',
+            'background-color': c.nodeRoute,
             'label':        'data(label)',
             'text-wrap':    'wrap',
             'color':        '#fff',
@@ -405,7 +429,7 @@ const cytoscapeStyle = [
         selector: 'node[type="router"]',
         style: {
             'shape':        'hexagon',
-            'background-color': '#f97316',
+            'background-color': c.nodeRouter,
             'label':        'data(label)',
             'text-wrap':    'wrap',
             'color':        '#fff',
@@ -423,7 +447,7 @@ const cytoscapeStyle = [
         selector: 'node[type="component"]',
         style: {
             'shape':        'ellipse',
-            'background-color': '#8b5cf6',
+            'background-color': c.nodeComponent,
             'label':        'data(label)',
             'color':        '#fff',
             'text-valign':  'center',
@@ -440,7 +464,7 @@ const cytoscapeStyle = [
         selector: 'node[type="table"]',
         style: {
             'shape':        'ellipse',
-            'background-color': '#facc15',
+            'background-color': c.nodeTable,
             'label':        'data(label)',
             'text-valign':  'center',
             'text-halign':  'center',
@@ -451,21 +475,21 @@ const cytoscapeStyle = [
             'width':        60,
             'height':       40,
             'border-width': 2,
-            'border-color': '#eab308',
+            'border-color': c.nodeTableBorder,
         }
     },
     {
         selector: 'edge[type="api_call"]',
         style: {
             'width':                  2,
-            'line-color':             '#3b82f6',
-            'target-arrow-color':     '#3b82f6',
+            'line-color':             c.edgeApi,
+            'target-arrow-color':     c.edgeApi,
             'target-arrow-shape':     'triangle',
             'curve-style':            'bezier',
             'label':                  'data(method)',
             'font-size':              '9px',
-            'color':                  '#3b82f6',
-            'text-background-color':  '#fff',
+            'color':                  c.edgeApi,
+            'text-background-color':  c.bg,
             'text-background-opacity': 1,
             'text-background-padding': '2px',
         }
@@ -474,8 +498,8 @@ const cytoscapeStyle = [
         selector: 'edge[type="import"]',
         style: {
             'width':              1,
-            'line-color':         '#9ca3af',
-            'target-arrow-color': '#9ca3af',
+            'line-color':         c.edgeImport,
+            'target-arrow-color': c.edgeImport,
             'target-arrow-shape': 'triangle',
             'curve-style':        'bezier',
             'line-style':         'dashed',
@@ -485,8 +509,8 @@ const cytoscapeStyle = [
         selector: 'edge[type="usage"]',
         style: {
             'width':              1.5,
-            'line-color':         '#a78bfa',
-            'target-arrow-color': '#a78bfa',
+            'line-color':         c.edgeUsage,
+            'target-arrow-color': c.edgeUsage,
             'target-arrow-shape': 'triangle',
             'curve-style':        'bezier',
         }
@@ -495,8 +519,8 @@ const cytoscapeStyle = [
         selector: 'edge[type="router_inclusion"]',
         style: {
             'width':              2,
-            'line-color':         '#f97316',
-            'target-arrow-color': '#f97316',
+            'line-color':         c.edgeRouter,
+            'target-arrow-color': c.edgeRouter,
             'target-arrow-shape': 'triangle',
             'curve-style':        'bezier',
         }
@@ -505,14 +529,14 @@ const cytoscapeStyle = [
         selector: 'edge[type="query"]',
         style: {
             'width':                   2,
-            'line-color':              '#eab308',
-            'target-arrow-color':      '#eab308',
+            'line-color':              c.edgeQuery,
+            'target-arrow-color':      c.edgeQuery,
             'target-arrow-shape':      'triangle',
             'curve-style':             'bezier',
             'label':                   'data(operation)',
             'font-size':               '9px',
-            'color':                   '#eab308',
-            'text-background-color':   '#fff',
+            'color':                   c.edgeQuery,
+            'text-background-color':   c.bg,
             'text-background-opacity': 1,
             'text-background-padding': '2px',
         }
@@ -528,19 +552,20 @@ const cytoscapeStyle = [
             'border-color': '#fbbf24',
         }
     },
-];
+    ];
+}
 
 // ── Shared primitives ─────────────────────────────────────────────────────────
 
 function MethodBadge({ method }) {
-    const cls = METHOD_CLASS[method] || 'bg-gray-100 text-gray-600';
+    const cls = METHOD_CLASS[method] || 'bg-[var(--panel-alt)] text-[var(--fg-dim)]';
     return React.createElement('span', {
         className: 'text-xs px-1.5 py-0.5 rounded font-mono font-medium ' + cls
     }, method);
 }
 
 function ReachableBadge({ reachable }) {
-    const cls = reachable ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
+    const cls = reachable ? 'bg-green-100 text-green-700' : 'bg-[var(--panel-alt)] text-[var(--fg-muted)]';
     return React.createElement('span', {
         className: 'text-xs px-1.5 py-0.5 rounded ' + cls
     }, reachable ? 'reachable' : 'unreachable');
@@ -556,7 +581,7 @@ function ClickableFile({ path, onNavigate }) {
 function DetailSection({ title, count, children }) {
     return React.createElement('div', { className: 'mb-6' },
         React.createElement('h3', {
-            className: 'text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5'
+            className: 'text-xs font-semibold uppercase tracking-wide text-[var(--fg-muted)] mb-1.5'
         }, title + ' (' + count + ')'),
         children
     );
@@ -566,7 +591,7 @@ function makeToggle(label, color, active, onClick) {
     return React.createElement('button', {
         onClick,
         className: 'flex items-center gap-1.5 px-2 py-1 rounded text-xs cursor-pointer transition-colors ' +
-            (active ? 'bg-gray-100' : 'opacity-50 hover:opacity-75'),
+            (active ? 'bg-[var(--panel-alt)]' : 'opacity-50 hover:opacity-75'),
     },
         React.createElement('span', {
             className: 'w-2 h-2 rounded-full flex-shrink-0',
@@ -581,17 +606,17 @@ function makeToggle(label, color, active, onClick) {
 function ImportRow({ imp, onNavigate }) {
     const names = imp.names && imp.names.length > 0 ? imp.names.join(', ') : '(side-effect)';
     return React.createElement('div', { className: 'flex items-start gap-1.5 py-0.5 text-sm' },
-        React.createElement('span', { className: 'text-gray-300 mt-0.5 select-none' }, '•'),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] mt-0.5 select-none' }, '•'),
         React.createElement('div', { className: 'min-w-0' },
-            React.createElement('span', { className: 'font-mono text-gray-700' }, imp.source),
-            React.createElement('span', { className: 'text-gray-400 mx-1.5' }, '·'),
-            React.createElement('span', { className: 'text-gray-600' }, names),
+            React.createElement('span', { className: 'font-mono text-[var(--fg-dim)]' }, imp.source),
+            React.createElement('span', { className: 'text-[var(--fg-muted)] mx-1.5' }, '·'),
+            React.createElement('span', { className: 'text-[var(--fg-dim)]' }, names),
             imp.external
                 ? React.createElement('span', {
-                    className: 'ml-2 bg-gray-100 text-gray-400 text-xs px-1.5 py-0.5 rounded'
+                    className: 'ml-2 bg-[var(--panel-alt)] text-[var(--fg-muted)] text-xs px-1.5 py-0.5 rounded'
                   }, 'ext')
                 : imp.resolved
-                    ? React.createElement('span', { className: 'ml-2 text-gray-400' },
+                    ? React.createElement('span', { className: 'ml-2 text-[var(--fg-muted)]' },
                         '→ ',
                         React.createElement('button', {
                             className: 'font-mono text-blue-600 underline hover:text-blue-800 cursor-pointer',
@@ -604,40 +629,40 @@ function ImportRow({ imp, onNavigate }) {
 
 function ExportRow({ exp }) {
     return React.createElement('div', { className: 'flex items-center gap-2 py-0.5 text-sm' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
-        React.createElement('span', { className: 'font-mono text-gray-700' }, exp.name),
-        React.createElement('span', { className: 'bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded' }, exp.type),
-        React.createElement('span', { className: 'text-gray-300 text-xs' }, 'line ' + exp.line)
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-[var(--fg-dim)]' }, exp.name),
+        React.createElement('span', { className: 'bg-[var(--panel-alt)] text-[var(--fg-muted)] text-xs px-1.5 py-0.5 rounded' }, exp.type),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] text-xs' }, 'line ' + exp.line)
     );
 }
 
 function DeclarationRow({ decl }) {
     return React.createElement('div', { className: 'flex items-center gap-2 py-0.5 text-sm' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
-        React.createElement('span', { className: 'font-mono text-gray-700' }, decl.name),
-        React.createElement('span', { className: 'bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded' }, decl.type),
-        React.createElement('span', { className: 'text-gray-300 text-xs' }, 'line ' + decl.line)
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-[var(--fg-dim)]' }, decl.name),
+        React.createElement('span', { className: 'bg-[var(--panel-alt)] text-[var(--fg-muted)] text-xs px-1.5 py-0.5 rounded' }, decl.type),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] text-xs' }, 'line ' + decl.line)
     );
 }
 
 function CallRow({ call }) {
-    const cls = CONFIDENCE_CLASS[call.confidence] || 'bg-gray-100 text-gray-600';
+    const cls = CONFIDENCE_CLASS[call.confidence] || 'bg-[var(--panel-alt)] text-[var(--fg-dim)]';
     return React.createElement('div', { className: 'flex items-center gap-2 py-0.5 text-sm' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
-        React.createElement('span', { className: 'font-mono text-gray-700' }, call.target),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-[var(--fg-dim)]' }, call.target),
         call.method && React.createElement(MethodBadge, { method: call.method }),
         React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded ' + cls }, call.confidence)
     );
 }
 
 function DatabaseQueryFileRow({ query }) {
-    const cls = CONFIDENCE_CLASS[query.confidence] || 'bg-gray-100 text-gray-600';
+    const cls = CONFIDENCE_CLASS[query.confidence] || 'bg-[var(--panel-alt)] text-[var(--fg-dim)]';
     return React.createElement('div', { className: 'flex items-center gap-2 py-0.5 text-sm' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
-        React.createElement('span', { className: 'font-mono text-gray-700' }, query.orm + '.' + query.table),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-[var(--fg-dim)]' }, query.orm + '.' + query.table),
         React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-mono' }, query.operation.toUpperCase()),
         React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded ' + cls }, query.confidence),
-        React.createElement('span', { className: 'text-gray-300 text-xs' }, 'line ' + query.line)
+        React.createElement('span', { className: 'text-[var(--fg-muted)] text-xs' }, 'line ' + query.line)
     );
 }
 
@@ -648,8 +673,8 @@ function FileDetails({ file, onNavigate, showDatabases }) {
         return React.createElement('div', {
             className: 'flex-1 flex items-center justify-center flex-col gap-1 text-sm'
         },
-            React.createElement('span', { className: 'text-gray-400' }, 'Select a file to view details'),
-            React.createElement('span', { className: 'text-gray-300 text-xs' }, 'or use the Routes tab to see API connections')
+            React.createElement('span', { className: 'text-[var(--fg-muted)]' }, 'Select a file to view details'),
+            React.createElement('span', { className: 'text-[var(--fg-muted)] text-xs' }, 'or use the Routes tab to see API connections')
         );
     }
 
@@ -658,11 +683,11 @@ function FileDetails({ file, onNavigate, showDatabases }) {
     const declarations   = file.declarations     || [];
     const calls          = file.calls            || [];
     const databaseQueries = file.database_queries || [];
-    const none = React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'None');
+    const none = React.createElement('p', { className: 'text-sm text-[var(--fg-muted)] italic' }, 'None');
 
     return React.createElement('div', { className: 'p-6 max-w-3xl' },
         React.createElement('h2', { className: 'font-mono font-semibold text-base mb-1 break-all' }, file.path),
-        React.createElement('div', { className: 'flex gap-4 text-xs text-gray-400 mb-5 pb-4 border-b' },
+        React.createElement('div', { className: 'flex gap-4 text-xs text-[var(--fg-muted)] mb-5 pb-4 border-b border-[var(--border)]' },
             React.createElement('span', null, file.language),
             React.createElement('span', null, file.size_bytes + ' bytes')
         ),
@@ -699,13 +724,13 @@ function FileDetails({ file, onNavigate, showDatabases }) {
 function FileNode({ file, depth, isSelected, onSelect }) {
     return React.createElement('div', {
         className: 'flex items-center py-0.5 cursor-pointer ' +
-            (isSelected ? 'bg-blue-100' : 'hover:bg-gray-100'),
+            (isSelected ? 'bg-blue-100' : 'hover:bg-[var(--panel-alt)]'),
         style: { paddingLeft: (depth * 16 + 20) + 'px', paddingRight: '8px' },
         onClick: onSelect,
     },
         React.createElement('span', {
             className: 'font-mono text-sm truncate ' +
-                (isSelected ? 'text-blue-700 font-medium' : 'text-gray-600')
+                (isSelected ? 'text-blue-700 font-medium' : 'text-[var(--fg-dim)]')
         }, file.name)
     );
 }
@@ -715,14 +740,14 @@ function DirectoryNode({ dir, depth, expandedDirs, onToggle, selectedFile, onSel
     const count = countTotalFiles(dir);
     return React.createElement('div', null,
         React.createElement('div', {
-            className: 'flex items-center gap-1 py-0.5 cursor-pointer select-none hover:bg-gray-100',
+            className: 'flex items-center gap-1 py-0.5 cursor-pointer select-none hover:bg-[var(--panel-alt)]',
             style: { paddingLeft: (depth * 16 + 4) + 'px', paddingRight: '8px' },
             onClick: () => onToggle(dir.path),
         },
-            React.createElement('span', { className: 'text-gray-400 text-xs w-3 flex-shrink-0' },
+            React.createElement('span', { className: 'text-[var(--fg-muted)] text-xs w-3 flex-shrink-0' },
                 isExpanded ? '▾' : '▸'),
-            React.createElement('span', { className: 'font-mono text-sm text-gray-700' }, dir.name + '/'),
-            React.createElement('span', { className: 'ml-1 text-xs text-gray-400' }, '(' + count + ')')
+            React.createElement('span', { className: 'font-mono text-sm text-[var(--fg-dim)]' }, dir.name + '/'),
+            React.createElement('span', { className: 'ml-1 text-xs text-[var(--fg-muted)]' }, '(' + count + ')')
         ),
         isExpanded && React.createElement('div', null,
             sortedDirs(dir).map(sub =>
@@ -744,7 +769,7 @@ function DirectoryNode({ dir, depth, expandedDirs, onToggle, selectedFile, onSel
 
 function FileTree({ tree, expandedDirs, onToggle, selectedFile, onSelectFile }) {
     if (tree.files.length === 0 && Object.keys(tree.dirs).length === 0) {
-        return React.createElement('div', { className: 'p-4 text-sm text-gray-400 italic' },
+        return React.createElement('div', { className: 'p-4 text-sm text-[var(--fg-muted)] italic' },
             'No files in this project');
     }
     return React.createElement('div', { className: 'py-2' },
@@ -769,13 +794,13 @@ function FileTree({ tree, expandedDirs, onToggle, selectedFile, onSelectFile }) 
 function FilesView({ tree, expandedDirs, onToggle, selectedFile, onSelectFile, selectedFileInfo, onNavigate, showDatabases }) {
     return React.createElement('div', { className: 'flex flex-1 overflow-hidden' },
         React.createElement('div', {
-            className: 'w-72 flex-shrink-0 border-r bg-white overflow-y-auto'
+            className: 'w-72 flex-shrink-0 border-r border-[var(--border)] bg-[var(--panel)] overflow-y-auto'
         },
             React.createElement(FileTree, {
                 tree, expandedDirs, onToggle, selectedFile, onSelectFile,
             })
         ),
-        React.createElement('div', { className: 'flex-1 overflow-y-auto bg-white' },
+        React.createElement('div', { className: 'flex-1 overflow-y-auto bg-[var(--panel)]' },
             React.createElement(FileDetails, { file: selectedFileInfo, onNavigate, showDatabases })
         )
     );
@@ -786,17 +811,17 @@ function FilesView({ tree, expandedDirs, onToggle, selectedFile, onSelectFile, s
 function ConnectionRow({ call, files, onNavigateToFile }) {
     const target = call.to_route || getCallTarget(call, files);
     const isMatched = !!call.to_route;
-    const confCls = CONFIDENCE_CLASS[call.confidence] || 'bg-gray-100 text-gray-600';
+    const confCls = CONFIDENCE_CLASS[call.confidence] || 'bg-[var(--panel-alt)] text-[var(--fg-dim)]';
 
     return React.createElement('div', { className: 'flex items-center gap-2 py-1 text-sm flex-wrap' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
         React.createElement(ClickableFile, { path: call.from_file, onNavigate: onNavigateToFile }),
-        React.createElement('span', { className: isMatched ? 'text-gray-400' : 'text-gray-200' }, '→'),
+        React.createElement('span', { className: isMatched ? 'text-[var(--fg-muted)]' : 'text-[var(--fg-muted)]' }, '→'),
         target
             ? React.createElement('span', {
-                className: 'font-mono ' + (isMatched ? 'text-gray-700' : 'text-gray-400 italic')
+                className: 'font-mono ' + (isMatched ? 'text-[var(--fg-dim)]' : 'text-[var(--fg-muted)] italic')
               }, target + (isMatched ? '' : ' (no matching route)'))
-            : React.createElement('span', { className: 'text-gray-300 italic text-xs' }, '(unknown route)'),
+            : React.createElement('span', { className: 'text-[var(--fg-muted)] italic text-xs' }, '(unknown route)'),
         call.method
             ? React.createElement(MethodBadge, { method: call.method })
             : React.createElement(MethodBadge, { method: 'GET' }),
@@ -811,15 +836,15 @@ function ConnectionsSection({ apiCalls, files, onNavigateToFile, title, emptyMes
         apiCalls.length > 0
             ? apiCalls.map((call, i) =>
                 React.createElement(ConnectionRow, { key: i, call, files, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' },
+            : React.createElement('p', { className: 'text-sm text-[var(--fg-muted)] italic' },
                 emptyMessage || 'No frontend-to-backend calls detected. Add a fetch call to a page to see connections here.')
     );
 }
 
 function PageRow({ page, onNavigateToFile }) {
     return React.createElement('div', { className: 'flex items-center gap-3 py-1 text-sm' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
-        React.createElement('span', { className: 'font-mono text-gray-800 w-48 flex-shrink-0' }, page.path),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-[var(--fg)] w-48 flex-shrink-0' }, page.path),
         React.createElement(ClickableFile, { path: page.file, onNavigate: onNavigateToFile })
     );
 }
@@ -829,14 +854,14 @@ function PagesSection({ pages, onNavigateToFile }) {
         pages.length > 0
             ? pages.map((page, i) =>
                 React.createElement(PageRow, { key: i, page, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No pages found.')
+            : React.createElement('p', { className: 'text-sm text-[var(--fg-muted)] italic' }, 'No pages found.')
     );
 }
 
 function RouteRow({ route, onNavigateToFile }) {
     return React.createElement('div', { className: 'flex items-center gap-2 py-1 text-sm flex-wrap' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
-        React.createElement('span', { className: 'font-mono text-gray-800 w-48 flex-shrink-0' }, route.path),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-[var(--fg)] w-48 flex-shrink-0' }, route.path),
         ...(route.methods || []).map(m => React.createElement(MethodBadge, { key: m, method: m })),
         React.createElement(ClickableFile, { path: route.file, onNavigate: onNavigateToFile })
     );
@@ -847,14 +872,14 @@ function APIRoutesSection({ routes, onNavigateToFile }) {
         routes.length > 0
             ? routes.map((route, i) =>
                 React.createElement(RouteRow, { key: i, route, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No API routes in this project. API routes live in app/api/*/route.ts files.')
+            : React.createElement('p', { className: 'text-sm text-[var(--fg-muted)] italic' }, 'No API routes in this project. API routes live in app/api/*/route.ts files.')
     );
 }
 
 function AppRow({ app, onNavigateToFile }) {
     return React.createElement('div', { className: 'flex items-center gap-3 py-1 text-sm' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
-        React.createElement('span', { className: 'font-mono text-gray-800 w-48 flex-shrink-0' }, app.name),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-[var(--fg)] w-48 flex-shrink-0' }, app.name),
         React.createElement(ClickableFile, { path: app.file, onNavigate: onNavigateToFile })
     );
 }
@@ -863,14 +888,14 @@ function FastAPIAppsSection({ apps, onNavigateToFile }) {
     return React.createElement(DetailSection, { title: 'FastAPI Apps', count: apps.length },
         apps.length > 0
             ? apps.map((app, i) => React.createElement(AppRow, { key: i, app, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No FastAPI apps detected.')
+            : React.createElement('p', { className: 'text-sm text-[var(--fg-muted)] italic' }, 'No FastAPI apps detected.')
     );
 }
 
 function RouterRow({ router, onNavigateToFile }) {
     return React.createElement('div', { className: 'flex items-center gap-2 py-1 text-sm flex-wrap' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
-        React.createElement('span', { className: 'font-mono text-gray-800 w-48 flex-shrink-0' }, router.prefix || router.name),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-[var(--fg)] w-48 flex-shrink-0' }, router.prefix || router.name),
         React.createElement(ReachableBadge, { reachable: router.reachable }),
         React.createElement(ClickableFile, { path: router.file, onNavigate: onNavigateToFile })
     );
@@ -880,17 +905,17 @@ function RoutersSection({ routers, onNavigateToFile }) {
     return React.createElement(DetailSection, { title: 'Routers', count: routers.length },
         routers.length > 0
             ? routers.map((router, i) => React.createElement(RouterRow, { key: i, router, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No routers detected.')
+            : React.createElement('p', { className: 'text-sm text-[var(--fg-muted)] italic' }, 'No routers detected.')
     );
 }
 
 function FastAPIRouteRow({ route, onNavigateToFile }) {
     return React.createElement('div', { className: 'flex items-center gap-2 py-1 text-sm flex-wrap' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
         React.createElement(MethodBadge, { method: route.method }),
-        React.createElement('span', { className: 'font-mono text-gray-800' }, route.path),
+        React.createElement('span', { className: 'font-mono text-[var(--fg)]' }, route.path),
         route.is_async && React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500' }, 'async'),
-        React.createElement('span', { className: 'text-gray-400' }, route.handler),
+        React.createElement('span', { className: 'text-[var(--fg-muted)]' }, route.handler),
         React.createElement(ReachableBadge, { reachable: route.reachable }),
         React.createElement(ClickableFile, { path: route.file, onNavigate: onNavigateToFile })
     );
@@ -900,14 +925,14 @@ function FastAPIRoutesSection({ routes, onNavigateToFile }) {
     return React.createElement(DetailSection, { title: 'FastAPI Routes', count: routes.length },
         routes.length > 0
             ? routes.map((route, i) => React.createElement(FastAPIRouteRow, { key: i, route, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No FastAPI routes detected.')
+            : React.createElement('p', { className: 'text-sm text-[var(--fg-muted)] italic' }, 'No FastAPI routes detected.')
     );
 }
 
 function DatabaseTableRow({ table, orm, onNavigateToFile }) {
     return React.createElement('div', { className: 'flex items-center gap-2 py-1 text-sm flex-wrap' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
-        React.createElement('span', { className: 'font-mono text-gray-800 w-48 flex-shrink-0' }, table.name),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
+        React.createElement('span', { className: 'font-mono text-[var(--fg)] w-48 flex-shrink-0' }, table.name),
         React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700' }, orm),
         React.createElement(ClickableFile, { path: table.file, onNavigate: onNavigateToFile })
     );
@@ -921,17 +946,17 @@ function DatabaseTablesSection({ databases, onNavigateToFile }) {
     return React.createElement(DetailSection, { title: 'Database Tables', count: rows.length },
         rows.length > 0
             ? rows.map((r, i) => React.createElement(DatabaseTableRow, { key: i, table: r.table, orm: r.orm, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No tables detected.')
+            : React.createElement('p', { className: 'text-sm text-[var(--fg-muted)] italic' }, 'No tables detected.')
     );
 }
 
 function DatabaseQueryRow({ query, onNavigateToFile }) {
-    const confCls = CONFIDENCE_CLASS[query.confidence] || 'bg-gray-100 text-gray-600';
+    const confCls = CONFIDENCE_CLASS[query.confidence] || 'bg-[var(--panel-alt)] text-[var(--fg-dim)]';
     return React.createElement('div', { className: 'flex items-center gap-2 py-1 text-sm flex-wrap' },
-        React.createElement('span', { className: 'text-gray-300 select-none' }, '•'),
+        React.createElement('span', { className: 'text-[var(--fg-muted)] select-none' }, '•'),
         React.createElement(ClickableFile, { path: query.file, onNavigate: onNavigateToFile }),
-        React.createElement('span', { className: 'text-gray-400' }, '→'),
-        React.createElement('span', { className: 'font-mono text-gray-700' }, query.orm + '.' + query.table),
+        React.createElement('span', { className: 'text-[var(--fg-muted)]' }, '→'),
+        React.createElement('span', { className: 'font-mono text-[var(--fg-dim)]' }, query.orm + '.' + query.table),
         React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-mono' }, query.operation.toUpperCase()),
         React.createElement('span', { className: 'text-xs px-1.5 py-0.5 rounded ' + confCls }, query.confidence)
     );
@@ -945,7 +970,7 @@ function DatabaseQueriesSection({ files, onNavigateToFile }) {
     return React.createElement(DetailSection, { title: 'Database Queries', count: rows.length },
         rows.length > 0
             ? rows.map((r, i) => React.createElement(DatabaseQueryRow, { key: i, query: r, onNavigateToFile }))
-            : React.createElement('p', { className: 'text-sm text-gray-400 italic' }, 'No database queries detected.')
+            : React.createElement('p', { className: 'text-sm text-[var(--fg-muted)] italic' }, 'No database queries detected.')
     );
 }
 
@@ -955,11 +980,11 @@ function RoutesView({ analysis, onNavigateToFile }) {
     const databases = analysis.databases || [];
     if (!nextjs && !fastapi && databases.length === 0) {
         return React.createElement('div', {
-            className: 'flex-1 flex items-center justify-center p-8 text-gray-400 text-sm text-center'
+            className: 'flex-1 flex items-center justify-center p-8 text-[var(--fg-muted)] text-sm text-center'
         }, 'No framework detected. Routes view is currently available for Next.js and FastAPI projects.');
     }
 
-    return React.createElement('div', { className: 'flex-1 overflow-y-auto bg-white' },
+    return React.createElement('div', { className: 'flex-1 overflow-y-auto bg-[var(--panel)]' },
         React.createElement('div', { className: 'p-6 max-w-3xl' },
             nextjs && React.createElement(ConnectionsSection, {
                 apiCalls: nextjs.api_calls || [], files: analysis.files, onNavigateToFile,
@@ -983,7 +1008,7 @@ function RoutesView({ analysis, onNavigateToFile }) {
 
 // ── GraphView ─────────────────────────────────────────────────────────────────
 
-function GraphView({ analysis, onNavigateToFile }) {
+function GraphView({ analysis, onNavigateToFile, theme }) {
     const containerRef = React.useRef(null);
     const cyRef        = React.useRef(null);
     const [showApiCalls, setShowApiCalls] = useState(true);
@@ -1022,7 +1047,7 @@ function GraphView({ analysis, onNavigateToFile }) {
         const cy = cytoscape({
             container: containerRef.current,
             elements: [...graphData.nodes, ...graphData.edges],
-            style: cytoscapeStyle,
+            style: buildCytoscapeStyle(getThemeColors()),
             layout: coseLayoutOptions,
         });
 
@@ -1069,6 +1094,15 @@ function GraphView({ analysis, onNavigateToFile }) {
         cyRef.current.edges('[type="query"]').style('display', showQueries ? 'element' : 'none');
     }, [showApiCalls, showImports, showUsage, showRouterInclusion, showQueries]);
 
+    // Re-apply node/edge colors when the theme changes. No-op while the
+    // graph hasn't mounted yet — the init effect above already builds its
+    // style fresh from getThemeColors() at that point, so there's nothing
+    // to catch up on.
+    useEffect(() => {
+        if (!cyRef.current) return;
+        cyRef.current.style(buildCytoscapeStyle(getThemeColors())).update();
+    }, [theme]);
+
     // Sync node visibility with type filter.
     useEffect(() => {
         if (!cyRef.current) return;
@@ -1079,37 +1113,37 @@ function GraphView({ analysis, onNavigateToFile }) {
 
     if (!hasData) {
         return React.createElement('div', {
-            className: 'flex-1 flex items-center justify-center p-8 text-gray-400 text-sm text-center'
+            className: 'flex-1 flex items-center justify-center p-8 text-[var(--fg-muted)] text-sm text-center'
         }, 'No graph data available. The graph view shows pages, routes, and components from Next.js and FastAPI projects. Add files to your project to populate it.');
     }
 
-    return React.createElement('div', { className: 'flex-1 flex flex-col bg-gray-50 overflow-hidden' },
+    return React.createElement('div', { className: 'flex-1 flex flex-col bg-[var(--bg)] overflow-hidden' },
         // Controls bar
         React.createElement('div', {
-            className: 'flex items-center gap-4 px-4 py-2 bg-white border-b text-xs flex-shrink-0 flex-wrap'
+            className: 'flex items-center gap-4 px-4 py-2 bg-[var(--panel)] border-b border-[var(--border)] text-xs flex-shrink-0 flex-wrap'
         },
             React.createElement('div', { className: 'flex items-center gap-2' },
-                React.createElement('span', { className: 'text-gray-500 font-medium' }, 'Edges:'),
-                makeToggle('API calls', '#3b82f6', showApiCalls, () => setShowApiCalls(v => !v)),
-                makeToggle('Imports',   '#9ca3af', showImports,  () => setShowImports(v => !v)),
-                makeToggle('Usage',     '#a78bfa', showUsage,    () => setShowUsage(v => !v)),
-                makeToggle('Router inclusion', '#f97316', showRouterInclusion, () => setShowRouterInclusion(v => !v)),
-                databases.length > 0 && makeToggle('Queries', '#eab308', showQueries, () => setShowQueries(v => !v)),
+                React.createElement('span', { className: 'text-[var(--fg-muted)] font-medium' }, 'Edges:'),
+                makeToggle('API calls', 'var(--edge-api)', showApiCalls, () => setShowApiCalls(v => !v)),
+                makeToggle('Imports',   'var(--edge-import)', showImports,  () => setShowImports(v => !v)),
+                makeToggle('Usage',     'var(--edge-usage)', showUsage,    () => setShowUsage(v => !v)),
+                makeToggle('Router inclusion', 'var(--edge-router)', showRouterInclusion, () => setShowRouterInclusion(v => !v)),
+                databases.length > 0 && makeToggle('Queries', 'var(--edge-query)', showQueries, () => setShowQueries(v => !v)),
             ),
             React.createElement('div', { className: 'flex items-center gap-2 ml-4' },
-                React.createElement('span', { className: 'text-gray-500 font-medium' }, 'Show:'),
-                makeToggle('Pages',      '#3b82f6', nodeTypeFilter.page,
+                React.createElement('span', { className: 'text-[var(--fg-muted)] font-medium' }, 'Show:'),
+                makeToggle('Pages',      'var(--node-page)', nodeTypeFilter.page,
                     () => setNodeTypeFilter(p => ({ ...p, page:      !p.page }))),
-                makeToggle('Routes',     '#10b981', nodeTypeFilter.route,
+                makeToggle('Routes',     'var(--node-route)', nodeTypeFilter.route,
                     () => setNodeTypeFilter(p => ({ ...p, route:     !p.route }))),
-                makeToggle('Components', '#8b5cf6', nodeTypeFilter.component,
+                makeToggle('Components', 'var(--node-component)', nodeTypeFilter.component,
                     () => setNodeTypeFilter(p => ({ ...p, component: !p.component }))),
-                makeToggle('Routers',    '#f97316', nodeTypeFilter.router,
+                makeToggle('Routers',    'var(--node-router)', nodeTypeFilter.router,
                     () => setNodeTypeFilter(p => ({ ...p, router:    !p.router }))),
-                databases.length > 0 && makeToggle('Tables', '#facc15', nodeTypeFilter.table,
+                databases.length > 0 && makeToggle('Tables', 'var(--node-table)', nodeTypeFilter.table,
                     () => setNodeTypeFilter(p => ({ ...p, table: !p.table }))),
             ),
-            React.createElement('div', { className: 'ml-auto text-gray-400 text-xs' },
+            React.createElement('div', { className: 'ml-auto text-[var(--fg-muted)] text-xs' },
                 'Click to highlight · Double-click to open in Files'
             ),
         ),
@@ -1130,16 +1164,16 @@ function Tabs({ currentView, onSwitchView }) {
         { id: 'routes', label: 'Routes', enabled: true },
         { id: 'graph',  label: 'Graph',  enabled: true },
     ];
-    return React.createElement('div', { className: 'flex border-b bg-white flex-shrink-0 px-4' },
+    return React.createElement('div', { className: 'flex border-b border-[var(--border)] bg-[var(--panel)] flex-shrink-0 px-4' },
         tabs.map(tab => {
             const isActive = tab.id === currentView;
             let cls = 'px-4 py-2 text-sm border-b-2 -mb-px transition-colors ';
             if (!tab.enabled) {
-                cls += 'border-transparent text-gray-300 cursor-not-allowed';
+                cls += 'border-transparent text-[var(--fg-muted)] cursor-not-allowed';
             } else if (isActive) {
                 cls += 'border-blue-500 text-blue-600 font-medium';
             } else {
-                cls += 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 cursor-pointer';
+                cls += 'border-transparent text-[var(--fg-muted)] hover:text-[var(--fg-dim)] hover:bg-[var(--bg)] cursor-pointer';
             }
             return React.createElement('button', {
                 key: tab.id,
@@ -1153,7 +1187,7 @@ function Tabs({ currentView, onSwitchView }) {
 
 // ── Header ────────────────────────────────────────────────────────────────────
 
-function Header({ analysis, lastUpdate }) {
+function Header({ analysis, lastUpdate, themeMode, onSelectTheme }) {
     const { project, files } = analysis;
     const fw = project.frameworks || [];
     const [justUpdated, setJustUpdated] = useState(false);
@@ -1166,9 +1200,9 @@ function Header({ analysis, lastUpdate }) {
     }, [lastUpdate]);
 
     return React.createElement('div', {
-        className: 'bg-white border-b px-5 py-2.5 flex items-center gap-3 flex-shrink-0'
+        className: 'bg-[var(--panel)] border-b border-[var(--border)] px-5 py-2.5 flex items-center gap-3 flex-shrink-0'
     },
-        React.createElement('span', { className: 'font-mono font-bold text-gray-800' }, project.name),
+        React.createElement('span', { className: 'font-mono font-bold text-[var(--fg)]' }, project.name),
         fw.map(f => React.createElement('span', {
             key: f,
             className: 'bg-indigo-50 text-indigo-600 text-xs px-2 py-0.5 rounded font-mono'
@@ -1176,8 +1210,17 @@ function Header({ analysis, lastUpdate }) {
         justUpdated && React.createElement('span', {
             className: 'text-xs px-2 py-0.5 rounded bg-green-50 text-green-600 font-medium'
         }, 'Just updated'),
-        React.createElement('span', { className: 'ml-auto text-xs text-gray-400' },
-            files.length + ' ' + (files.length === 1 ? 'file' : 'files'))
+        React.createElement('span', { className: 'ml-auto text-xs text-[var(--fg-muted)]' },
+            files.length + ' ' + (files.length === 1 ? 'file' : 'files')),
+        React.createElement('div', { className: 'theme-switcher', role: 'radiogroup', 'aria-label': 'Theme' },
+            THEME_MODES.map(mode => React.createElement('button', {
+                key: mode,
+                className: 'theme-option' + (mode === themeMode ? ' active' : ''),
+                'aria-label': mode + ' theme',
+                title: mode.charAt(0).toUpperCase() + mode.slice(1),
+                onClick: () => onSelectTheme(mode),
+            }, mode.charAt(0).toUpperCase() + mode.slice(1)))
+        )
     );
 }
 
@@ -1190,6 +1233,35 @@ function App() {
     const [currentView,  setCurrentView]  = useState('files');
     const [error,        setError]        = useState(null);
     const [lastUpdate,   setLastUpdate]   = useState(null);
+
+    const [themeMode, setThemeMode] = useState(() => {
+        const stored = localStorage.getItem(THEME_STORAGE_KEY);
+        return THEME_MODES.includes(stored) ? stored : 'light';
+    });
+    const [systemDark, setSystemDark] = useState(
+        !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    );
+    const effectiveTheme = themeMode === 'auto' ? (systemDark ? 'dark' : 'light') : themeMode;
+
+    useEffect(() => {
+        if (!window.matchMedia) return;
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        const handler = e => setSystemDark(e.matches);
+        mq.addEventListener('change', handler);
+        return () => mq.removeEventListener('change', handler);
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem(THEME_STORAGE_KEY, themeMode);
+    }, [themeMode]);
+
+    useEffect(() => {
+        if (effectiveTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+        }
+    }, [effectiveTheme]);
 
     const wsRef              = useRef(null);
     const reconnectTimerRef  = useRef(null);
@@ -1294,15 +1366,15 @@ function App() {
             'Error loading analysis: ' + error);
     }
     if (!analysis) {
-        return React.createElement('div', { className: 'p-8 text-gray-400 text-sm' }, 'Loading...');
+        return React.createElement('div', { className: 'p-8 text-[var(--fg-muted)] text-sm' }, 'Loading...');
     }
 
     const tree = buildTree(analysis.files);
     const selectedFileInfo = analysis.files.find(f => f.path === selectedFile) || null;
     const showDatabases = !!(analysis.databases && analysis.databases.length > 0);
 
-    return React.createElement('div', { className: 'h-screen flex flex-col bg-gray-50' },
-        React.createElement(Header, { analysis, lastUpdate }),
+    return React.createElement('div', { className: 'h-screen flex flex-col bg-[var(--bg)]' },
+        React.createElement(Header, { analysis, lastUpdate, themeMode, onSelectTheme: setThemeMode }),
         React.createElement(Tabs, { currentView, onSwitchView: setCurrentView }),
         currentView === 'files'
             ? React.createElement(FilesView, {
@@ -1322,6 +1394,7 @@ function App() {
                 : React.createElement(GraphView, {
                     analysis,
                     onNavigateToFile: handleNavigateToFile,
+                    theme: effectiveTheme,
                 })
     );
 }

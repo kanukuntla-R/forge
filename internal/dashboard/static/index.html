@@ -2,6 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>
+        // Set the theme attribute before any CSS loads, so there's no flash
+        // of the wrong theme on first paint.
+        (function() {
+            var MODES = ['light', 'dark', 'auto'];
+            var stored = localStorage.getItem('forge-theme');
+            var mode = MODES.indexOf(stored) !== -1 ? stored : 'light';
+            var isDark = mode === 'dark' ||
+                (mode === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (isDark) document.documentElement.setAttribute('data-theme', 'dark');
+        })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>forge dashboard</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -13,7 +25,7 @@
     <script src="https://unpkg.com/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
     <link rel="stylesheet" href="/style.css">
 </head>
-<body class="bg-gray-50">
+<body>
     <div id="root"></div>
     <script src="/app.js"></script>
 </body>

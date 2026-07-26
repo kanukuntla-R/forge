@@ -1,2 +1,108 @@
-/* M8.5a placeholder — Tailwind handles the heavy lifting via CDN.
-   Custom styles go here in M8.5b+. */
+/* forge dashboard theme variables. :root is the light theme (default,
+   matches the dashboard's original look); [data-theme="dark"] overrides it.
+   Node/edge colors feed internal/dashboard/static/app.js's getThemeColors(). */
+
+:root {
+    --bg: #f9fafb;
+    --panel: #ffffff;
+    --panel-alt: #f3f4f6;
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+    --fg: #1f2937;
+    --fg-dim: #374151;
+    --fg-muted: #9ca3af;
+
+    --node-page: #3b82f6;
+    --node-route: #10b981;
+    --node-router: #f97316;
+    --node-component: #8b5cf6;
+    --node-table: #facc15;
+    --node-table-border: #eab308;
+
+    --edge-api: #3b82f6;
+    --edge-import: #9ca3af;
+    --edge-usage: #a78bfa;
+    --edge-router: #f97316;
+    --edge-query: #eab308;
+
+    --accent: #3b82f6;
+}
+
+[data-theme="dark"] {
+    --bg: #0f0f0f;
+    --panel: #171717;
+    --panel-alt: #1e1e1e;
+    --border: #262626;
+    --border-strong: #333333;
+    --fg: #ededed;
+    --fg-dim: #999999;
+    --fg-muted: #737373;
+
+    --node-page: #60a5fa;
+    --node-route: #34d399;
+    --node-router: #fb923c;
+    --node-component: #a78bfa;
+    --node-table: #fde047;
+    --node-table-border: #facc15;
+
+    --edge-api: #60a5fa;
+    --edge-import: #d1d5db;
+    --edge-usage: #c4b5fd;
+    --edge-router: #fb923c;
+    --edge-query: #facc15;
+
+    --accent: #60a5fa;
+}
+
+body {
+    background: var(--bg);
+    color: var(--fg);
+}
+
+.theme-switcher {
+    display: inline-flex;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
+    position: relative;
+}
+
+.theme-option {
+    background: transparent;
+    border: none;
+    color: var(--fg-dim);
+    padding: 5px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: color 0.15s ease, background 0.15s ease;
+    min-width: 44px;
+    text-align: center;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+}
+
+.theme-option:hover {
+    color: var(--fg);
+}
+
+.theme-option.active {
+    background: var(--bg);
+    color: var(--fg);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .theme-option.active {
+    background: var(--panel-alt);
+    color: var(--fg);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.theme-option:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
