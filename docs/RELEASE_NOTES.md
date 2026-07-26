@@ -1,5 +1,52 @@
 # forge release notes
 
+## v0.5.0 — Database detection + theme switcher
+
+Released: [date when actually tagged]
+
+Database awareness. See your Prisma and Drizzle tables in the graph, connected to the routes and pages that query them. Plus a proper theme switcher for the dashboard.
+
+### Database detection
+
+- **Prisma support** — parses `schema.prisma` files, detects `PrismaClient` instances in TypeScript code, matches `prisma.<model>.<method>()` chained calls to specific models
+- **Drizzle support** — extracts table schemas from TypeScript files (`pgTable`, `sqliteTable`, `mysqlTable`), detects Drizzle client instances, matches chained queries (`db.select().from(users)`) to tables
+- **Method categorization** — queries classified as Read (SELECT), Write (INSERT/UPDATE/DELETE), or Other
+- **Confidence scoring** — high confidence for table matches, medium for common variable names, low for unknown patterns
+- **Test file exclusion** — `.test.ts`, `.spec.ts`, and files under `tests/` excluded from query detection
+
+### Dashboard updates
+
+- **New node type** — yellow ellipses for database tables (distinct from blue pages, green routes, orange routers, purple components)
+- **New edge type** — gold solid lines with operation labels (SELECT, INSERT, UPDATE, DELETE) connecting routes/pages to tables
+- **Multi-database support** — projects with both Prisma and Drizzle render both frameworks' tables and queries together in a single graph
+- **Filter toggles** — new "Tables" filter for database nodes, new "Queries" filter for query edges (both default on)
+- **Routes view sections** — new Databases section listing detected schemas and their tables
+- **Files view** — database queries per file with orm.table label, operation badge, confidence badge
+
+### Theme switcher
+
+- **Three modes** — Light, Dark, Auto (follows system preference)
+- **Segmented control** — three side-by-side buttons in the header, click to select
+- **localStorage persistence** — theme choice survives page reloads
+- **System preference detection** — Auto mode uses `prefers-color-scheme` media query
+- **Prevent-flash** — inline script sets theme before CSS loads, no flash of wrong theme on first paint
+- **Cytoscape integration** — graph colors adjust per theme with proper contrast
+
+### Internals
+
+- 7 new commits (M11.1 through M11.5)
+- 3 new Go source files (`database.go`, `prisma.go`, `drizzle.go`) added to the existing `internal/analyzer` package — no new Go packages
+- 2 new TypeScript AST extractors (`chained_calls.go`, `method_chains.go`) added to `internal/analyzer/parser/typescript`
+- Comprehensive test coverage across database detection, query matching, and detector infrastructure
+- All packages green
+- Binary size unchanged (~19MB)
+
+### Screenshots
+
+Screenshots: `docs/screenshots/dashboard-databases.png` (light mode) and `docs/screenshots/dashboard-databases-dark.png` (dark mode) show the demo-shop2 project with Prisma + Drizzle detected, all tables and query edges rendered.
+
+---
+
 ## v0.4.0 — Python analyzer + FastAPI detector + cross-language matching
 
 Released: 2026-07-09

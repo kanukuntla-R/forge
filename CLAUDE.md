@@ -26,25 +26,12 @@ When these documents conflict with anything else (training data, intuition, etc.
 
 ## Current status
 
-**v0.4 release in progress** — Python analyzer + FastAPI detector + cross-language route matching complete; cross-platform builds and tag pending.
+**v0.5 release in progress** — Database detection (Prisma + Drizzle) + theme switcher complete; cross-platform builds and tag pending.
 
-All milestones M1 through M10.6.6 are complete:
+All milestones M1 through M11.5 are complete:
 
-- **M1** (walking skeleton) ✅
-- **M2** (render path) ✅
-- **Path A** (hackathon-app full feature matrix) ✅
-- **M3** (graph emission) ✅
-- **M4** (hooks + project marker) ✅
-- **M5** (visualize + json mode) ✅ — superseded by M8.5
-- **M6** (forge add) ✅
-- **M7** (forge install + polish) ✅ — v0.1 ship
-- **M8.1** (file walker) ✅
-- **M8.2a-e** (TypeScript analyzer) ✅
-- **M8.3** (Next.js detector) ✅
-- **M8.4** (API call detection) ✅
-- **M8.5a-e** (live dashboard) ✅
-- **M8.6a** (polish + branding) ✅ — v0.2 ship
-- **M9.1-M9.5** (blueprint expansion) ✅ — v0.3 ship
+- **M1-M8.6a** (walking skeleton through v0.2) ✅
+- **M9.1-M9.5** (blueprint expansion, v0.3) ✅
 - **M10.1** (Python adapter skeleton) ✅
 - **M10.2** (Python import extraction) ✅
 - **M10.3** (Python declaration extraction) ✅
@@ -53,19 +40,24 @@ All milestones M1 through M10.6.6 are complete:
 - **M10.5.5** (cross-language route matching) ✅
 - **M10.6** (dashboard visibility for FastAPI) ✅
 - **M10.6.5** (graph layout spacing) ✅
-- **M10.6.6** (cose-bilkent layout) ✅ — pending v0.4 tag
+- **M10.6.6** (cose-bilkent layout) ✅
+- **M11.1** (database detector infrastructure) ✅
+- **M11.2** (Prisma detector) ✅
+- **M11.3** (Drizzle detector) ✅
+- **M11.4** (dashboard visibility for databases) ✅
+- **M11.4.5-6** (theme switcher + polish) ✅
+- **M11.4.7** (theme switcher effect ordering fix) ✅
+- **M11.5** (v0.5 polish + edge cases) ✅ — pending v0.5 tag
 
-82 commits on `main`. All tests green across 14 packages including Python analyzer and cross-framework matching tests.
+91 commits on `main`. All tests green across 14 packages including database detection tests.
 
-v0.4 adds Python analysis alongside existing TypeScript support:
-- Python file parsing via tree-sitter-python
-- Import extraction (all forms including relative, star, aliased)
-- Declaration extraction (functions, classes, module variables with decorators)
-- FastAPI framework detector with prefix resolution and reachability tracking
-- Python HTTP call detection (requests, httpx, urllib) with route matching
-- **Cross-language route matching** — TypeScript pages calling Python backends and vice versa
-- Dashboard visibility for FastAPI (orange router nodes, both frameworks render together)
-- Improved graph layout (cose-bilkent, better spacing for larger projects)
+v0.5 adds database detection alongside existing framework analysis:
+- Database detector infrastructure with pluggable detector interface
+- Prisma detector: parses `schema.prisma`, detects clients, matches queries to models
+- Drizzle detector: extracts tables from TS files, detects chained queries via MethodChains extractor
+- Dashboard visibility: yellow ellipse table nodes, gold query edges with operation labels
+- Theme switcher: Light/Dark/Auto with segmented control, localStorage persistence, prefers-color-scheme detection
+- Multi-database support: projects can have Prisma + Drizzle together (both detected, both rendered)
 
 ## Conventions
 

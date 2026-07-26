@@ -2,7 +2,7 @@
 
 A meta-CLI for scaffolding projects from blueprints and understanding them as they grow. One command produces a working project. Another adds new pieces to it. A third opens an interactive dashboard showing how the pieces wire together. Built in Go, ships as a single static binary.
 
-![forge dashboard graph view](docs/screenshots/dashboard-graph.png)
+![forge dashboard with database detection](docs/screenshots/dashboard-databases.png)
 
 ## Why forge
 
@@ -113,6 +113,7 @@ All commands support `--help`. Most support `--json` for structured output.
 - **Embedded + installed blueprints**: ships with 5 blueprints covering Next.js, FastAPI, Python CLI, Go CLI, and meta-blueprint scaffolding. Install more from any git URL.
 - **Analysis + dashboard**: static analysis of TypeScript/JavaScript projects with a live-updating dashboard showing files, routes, components, and API connections
 - **Multi-language analysis**: parses TypeScript/JavaScript (Next.js) and Python (FastAPI) codebases. Cross-language route matching connects frontend fetches to backend endpoints.
+- **Database detection**: parses Prisma (`schema.prisma`) and Drizzle schemas, detects query calls in your code, and connects them to specific tables in the graph view.
 
 ## Built-in blueprints
 
@@ -163,12 +164,7 @@ Blueprints are directories with a manifest, a template tree, and optional extens
 
 ## Status
 
-v0.4 adds Python analyzer + FastAPI detector + cross-language route matching. The roadmap beyond v0.4 includes:
-
-- **Caching layer** — content-hash-based caching for faster re-analysis on large projects
-- **More framework detectors** — Astro, Remix, SvelteKit, Vue on the TypeScript side; Django, Flask on the Python side
-- **Monorepo support** — Next.js detection in nested directories (frontend/, web/, client/)
-- **Enhanced client tracking** — module-level and function-scope client variables for httpx and requests
+v0.5 adds database detection (Prisma + Drizzle) alongside framework analysis, plus a theme switcher for the dashboard. See [`NOTES.md`](NOTES.md) for the detailed roadmap — next up is SQLAlchemy, Supabase, and Firebase detectors (v0.5.1).
 
 See [`docs/forge-design.md`](docs/forge-design.md), [`docs/forge-analyzer-design.md`](docs/forge-analyzer-design.md), and [`docs/blueprint-authoring.md`](docs/blueprint-authoring.md) for design notes.
 
