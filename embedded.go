@@ -11,7 +11,7 @@ import "embed"
 
 // Version is set at build time via -ldflags. The default value is the
 // local development indicator; release builds inject the real version.
-var Version = "0.5.0"
+var Version = "0.5.1"
 
 // all: is required so that template files beginning with '.' or '_'
 // (e.g. .gitignore, .env.example) are included when we add the template tree.

@@ -92,6 +92,26 @@ cd forge
 make install   # builds and installs to ~/.local/bin/forge
 ```
 
+## Claude Code Plugin
+
+forge has a Claude Code plugin that teaches Claude Code to use forge for scaffolding and visualization.
+
+Install in Claude Code:
+
+    /plugin marketplace add https://github.com/kanukuntla-R/forge
+    /plugin install forge
+    /reload-plugins
+
+Then just tell Claude Code what you want:
+
+    "I want to start a new Next.js project called my-app"
+    → Claude Code will guide you through blueprint selection and options
+
+    "Help me visualize this codebase"
+    → Claude Code will suggest forge visualize
+
+The plugin is MIT licensed. Source lives in [plugin/](plugin/) alongside the CLI.
+
 ## Commands
 
 - `forge new <blueprint> [name]` — scaffold a new project from a blueprint
@@ -104,6 +124,8 @@ make install   # builds and installs to ~/.local/bin/forge
 All commands support `--help`. Most support `--json` for structured output.
 
 ## What forge does
+
+forge is available two ways: as a **standalone CLI** (install the binary, run `forge new`/`forge visualize` directly) or as a **Claude Code plugin** (install the marketplace, then Claude Code guides you through forge commands naturally).
 
 - **Blueprints**: opinionated project templates with variables, conditional features, and post-create hooks
 - **Extensions**: layered scaffold operations that add to existing projects
@@ -164,7 +186,16 @@ Blueprints are directories with a manifest, a template tree, and optional extens
 
 ## Status
 
-v0.5 adds database detection (Prisma + Drizzle) alongside framework analysis, plus a theme switcher for the dashboard. See [`NOTES.md`](NOTES.md) for the detailed roadmap — next up is SQLAlchemy, Supabase, and Firebase detectors (v0.5.1).
+v0.5.1 adds a Claude Code plugin, letting Claude Code use forge to scaffold new projects and visualize codebases. Install the plugin from your Claude Code session:
+
+    /plugin marketplace add https://github.com/kanukuntla-R/forge
+    /plugin install forge
+
+The forge CLI itself remains a single Go binary. Install with:
+
+    curl -fsSL https://raw.githubusercontent.com/kanukuntla-R/forge/main/install.sh | bash
+
+See [NOTES.md](NOTES.md) for the full roadmap.
 
 See [`docs/forge-design.md`](docs/forge-design.md), [`docs/forge-analyzer-design.md`](docs/forge-analyzer-design.md), and [`docs/blueprint-authoring.md`](docs/blueprint-authoring.md) for design notes.
 

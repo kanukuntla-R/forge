@@ -26,9 +26,9 @@ When these documents conflict with anything else (training data, intuition, etc.
 
 ## Current status
 
-**v0.5 release in progress** — Database detection (Prisma + Drizzle) + theme switcher complete; cross-platform builds and tag pending.
+**v0.5.1 release in progress** — Claude Code plugin complete; cross-platform builds and tag pending.
 
-All milestones M1 through M11.5 are complete:
+All milestones M1 through M12.3 are complete:
 
 - **M1-M8.6a** (walking skeleton through v0.2) ✅
 - **M9.1-M9.5** (blueprint expansion, v0.3) ✅
@@ -47,9 +47,10 @@ All milestones M1 through M11.5 are complete:
 - **M11.4** (dashboard visibility for databases) ✅
 - **M11.4.5-6** (theme switcher + polish) ✅
 - **M11.4.7** (theme switcher effect ordering fix) ✅
-- **M11.5** (v0.5 polish + edge cases) ✅ — pending v0.5 tag
+- **M11.5** (v0.5 polish + edge cases) ✅
+- **M12.1-M12.3** (Claude Code plugin restructure, v0.5.1) ✅
 
-91 commits on `main`. All tests green across 14 packages including database detection tests.
+95 commits on `main`. All tests green across 14 packages including database detection tests.
 
 v0.5 adds database detection alongside existing framework analysis:
 - Database detector infrastructure with pluggable detector interface
@@ -58,6 +59,14 @@ v0.5 adds database detection alongside existing framework analysis:
 - Dashboard visibility: yellow ellipse table nodes, gold query edges with operation labels
 - Theme switcher: Light/Dark/Auto with segmented control, localStorage persistence, prefers-color-scheme detection
 - Multi-database support: projects can have Prisma + Drizzle together (both detected, both rendered)
+
+v0.5.1 adds Claude Code plugin distribution:
+- Plugin lives at `plugin/` with proper `.claude-plugin/plugin.json` metadata
+- Skill file at `plugin/skills/forge/SKILL.md` with YAML frontmatter
+- Slash commands `/forge-new` and `/forge-visualize` for explicit invocation
+- Marketplace metadata at `.claude-plugin/marketplace.json` for discovery
+- Users install via `/plugin marketplace add https://github.com/kanukuntla-R/forge` + `/plugin install forge`
+- Verified end-to-end: skill auto-triggers on scaffolding prompts, guides through blueprint selection
 
 ## Conventions
 
@@ -96,11 +105,11 @@ v0.5 adds database detection alongside existing framework analysis:
 
 ## Implementation milestones (from design doc)
 
-All milestones M1 through M10 complete. See "Current status" above for the detailed breakdown.
+All milestones M1 through M12.3 complete. See "Current status" above for the detailed breakdown.
 
-Post-v0.4 roadmap:
-- **v0.5**: Caching layer, more framework detectors (Astro, Remix, SvelteKit, Vue)
-- **Future**: Django/Flask detectors, path-segment templating with skip-unknown-vars mode, monorepo Next.js support (frontend/, web/ subdirectories), client-variable tracking for httpx patterns
+Post-v0.5.1 roadmap:
+- **v0.5.2+**: SQLAlchemy detector, Supabase JS client detector, Firebase detector, cross-language route matching for database queries, foreign key relationships, table field/column detection, client-variable tracking for HTTP call detection, more framework detectors (Astro, Remix, SvelteKit, Vue, Django, Flask), path-segment templating for meta-blueprints, monorepo Next.js support, caching with content hashes
+- **v0.6+**: astro-site blueprint, openclaw-skill blueprint
 
 ## What forge depends on externally
 

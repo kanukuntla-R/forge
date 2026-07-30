@@ -1,5 +1,42 @@
 # forge release notes
 
+## v0.5.1 — Claude Code Plugin
+
+Released: [date when actually tagged]
+
+Claude Code integration. Install the forge plugin from Claude Code's marketplace and Claude Code will use forge naturally when scaffolding new projects.
+
+### Claude Code Plugin
+
+- **Plugin structure** — Proper Claude Code plugin format at `plugin/` with `.claude-plugin/plugin.json` metadata, skill file at `skills/forge/SKILL.md` with YAML frontmatter, and slash commands `/forge-new` and `/forge-visualize`
+- **Marketplace** — `.claude-plugin/marketplace.json` at repo top-level lets Claude Code discover forge as a marketplace
+- **Installation** — Users install with `/plugin marketplace add https://github.com/kanukuntla-R/forge` then `/plugin install forge`
+- **Auto-trigger** — Skill activates when user mentions scaffolding, project setup, or codebase visualization
+- **Guided workflow** — When triggered, Claude Code asks about blueprint feature flags (database, auth, AI) and constructs the correct forge command
+
+### What was removed
+
+The `forge skill install` command from an earlier plugin attempt has been removed. Users now install the plugin via Claude Code's native `/plugin` UI, not through the forge CLI.
+
+### License
+
+- Plugin content (SKILL.md, slash commands, metadata) — MIT
+- forge CLI itself — PolyForm-NC-1.0.0
+
+Both licenses are documented in `plugin/README.md`.
+
+### Verified
+
+Plugin installed successfully in a real Claude Code session. Skill auto-triggered on the prompt "I want to start a new Next.js project" and guided the user through blueprint selection (hackathon-app), feature flags (Supabase database, Supabase auth, Anthropic SDK), and command execution.
+
+### Internals
+
+- 1 new commit (M12.3)
+- No changes to the forge analyzer or CLI (v0.5.1 is a plugin distribution release)
+- Binary unchanged from v0.5.0 (except version constant)
+
+---
+
 ## v0.5.0 — Database detection + theme switcher
 
 Released: 2026-07-26
