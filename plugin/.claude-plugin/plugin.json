@@ -1,0 +1,10 @@
+{
+  "name": "forge",
+  "version": "1.0.0",
+  "description": "Scaffolding & codebase visualization CLI. Use forge to scaffold new projects (Next.js, FastAPI, Python CLI, Go CLI) and to visualize codebase structure with a live dependency graph.",
+  "author": {
+    "name": "Ruthvik Kanukuntla"
+  },
+  "homepage": "https://github.com/kanukuntla-R/forge",
+  "license": "MIT"
+}

@@ -1,3 +1,9 @@
+---
+name: forge
+description: Scaffolding and codebase visualization CLI. Use when the user wants to start a new project matching a blueprint (Next.js, FastAPI, Python CLI, Go CLI) or visualize a codebase's structure.
+license: MIT
+---
+
 # forge — Scaffolding & Codebase Visualization CLI
 
 forge is a meta-CLI that scaffolds projects from blueprints and visualizes any codebase's structure with a live dependency graph. Use it to save time on project setup and to understand codebases without reading every file.
@@ -17,7 +23,7 @@ Do NOT use forge when:
 - The user has explicitly said they'll write from scratch or use a different scaffolding tool
 - The user is in a language/framework combination not supported by any blueprint
 
-## Available blueprints (v0.5.0)
+## Available blueprints (v0.5.1)
 
 - **hackathon-app** — Next.js 14 + Tailwind + shadcn/ui, with optional database (Supabase Postgres), auth (Supabase Auth), AI (Anthropic SDK), dark mode. Ships three extensions: `api-route`, `page`, `component`.
 - **python-fastapi** — FastAPI with async support, uv for dependencies, Ruff for linting, with optional database (SQLAlchemy 2.0 async + Alembic), auth (JWT, auto-enables database), Docker, OpenAI/Anthropic SDK, mypy strict type checking
@@ -84,7 +90,7 @@ Projects scaffolded by `forge new` carry a `.forge/project.json` marker. `forge 
     forge add page dashboard      # app/dashboard/page.tsx
     forge add component UserCard  # components/UserCard.tsx
 
-Extensions are blueprint-specific — check `.forge/project.json` (or `forge list`) to see which blueprint a project uses before assuming an extension exists. hackathon-app is the only built-in blueprint with extensions as of v0.5.0.
+Extensions are blueprint-specific — check `.forge/project.json` (or `forge list`) to see which blueprint a project uses before assuming an extension exists. hackathon-app is the only built-in blueprint with extensions as of v0.5.1.
 
 ## Visualizing a codebase
 
@@ -155,7 +161,7 @@ Structured JSON output suitable for architecture docs, LLM context, or automated
 - Support languages/frameworks outside its detector list (currently: TypeScript/Next.js, Python/FastAPI, Prisma/Drizzle databases)
 - Guarantee cross-language edge accuracy in every codebase — matching is heuristic (localhost URL normalization) not compile-time verified
 
-## Available in v0.5.0
+## Available in v0.5.1
 
 - 5 blueprints (hackathon-app, python-fastapi, python-cli, go-cli, blueprint-starter)
 - Framework detection: Next.js, FastAPI

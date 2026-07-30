@@ -1,0 +1,24 @@
+{
+  "name": "forge",
+  "description": "forge — Scaffolding & codebase visualization CLI plugin marketplace",
+  "owner": {
+    "name": "Ruthvik Kanukuntla"
+  },
+  "plugins": [
+    {
+      "name": "forge",
+      "description": "Scaffolding and codebase visualization CLI. Use when the user wants to start a new project matching a blueprint (Next.js, FastAPI, Python CLI, Go CLI) or visualize a codebase's structure.",
+      "author": {
+        "name": "Ruthvik Kanukuntla"
+      },
+      "category": "development",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/kanukuntla-R/forge.git",
+        "path": "plugin",
+        "ref": "main"
+      },
+      "homepage": "https://github.com/kanukuntla-R/forge"
+    }
+  ]
+}
