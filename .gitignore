@@ -34,3 +34,4 @@
 
 # Analyzer runtime output (forge analyze writes here)
 /.forge/
+.mcp.json

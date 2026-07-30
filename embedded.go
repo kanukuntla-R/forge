@@ -1,9 +1,10 @@
-// Package forge exists solely to embed the blueprints/ directory into the
-// binary. Go's //go:embed directive requires paths relative to the source file
-// and forbids ".."; because blueprints/ lives at the project root (where it is
-// visible as first-class content, not an internal detail), the embed directive
-// must live here too. internal/blueprint imports this package to access the
-// embedded filesystem. See the Architecture note in docs/forge-design.md.
+// Package forge exists solely to embed root-level content (blueprints/,
+// skills/) into the binary. Go's //go:embed directive requires paths relative
+// to the source file and forbids ".."; because that content lives at the
+// project root (where it is visible as first-class content, not an internal
+// detail), the embed directives must live here too. internal/blueprint and
+// internal/skill import this package to access the embedded content.
+// See the Architecture note in docs/forge-design.md.
 package forge
 
 import "embed"
@@ -23,4 +24,12 @@ var blueprintsFS embed.FS
 // typically sub into it with fs.Sub(BlueprintsFS(), "blueprints").
 func BlueprintsFS() embed.FS {
 	return blueprintsFS
+}
+
+//go:embed skills/forge.skill.md
+var skillContent []byte
+
+// SkillContent returns the embedded forge Claude Code skill file content.
+func SkillContent() []byte {
+	return skillContent
 }
