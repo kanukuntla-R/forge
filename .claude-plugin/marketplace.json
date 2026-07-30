@@ -16,7 +16,7 @@
         "source": "git-subdir",
         "url": "https://github.com/kanukuntla-R/forge.git",
         "path": "plugin",
-        "ref": "main"
+        "ref": "v0.5.1"
       },
       "homepage": "https://github.com/kanukuntla-R/forge"
     }
