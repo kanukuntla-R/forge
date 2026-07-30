@@ -2,7 +2,7 @@
 
 ## v0.5.1 — Claude Code Plugin
 
-Released: [date when actually tagged]
+Released: 2026-07-30
 
 Claude Code integration. Install the forge plugin from Claude Code's marketplace and Claude Code will use forge naturally when scaffolding new projects.
 
