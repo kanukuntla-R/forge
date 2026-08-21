@@ -35,3 +35,6 @@
 # Analyzer runtime output (forge analyze writes here)
 /.forge/
 .mcp.json
+
+# M13.0 spike: throwaway Node tooling, not part of the Go module
+/spike/

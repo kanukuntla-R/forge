@@ -107,6 +107,10 @@ v0.5.1 adds Claude Code plugin distribution:
 
 All milestones M1 through M12.3 complete. See "Current status" above for the detailed breakdown.
 
+**M13.0 spike (2026-07-30)** ✅ — React component rendering research complete. Verdict: Playwright + esbuild bundling is High feasibility (rendered all 3 test fixtures on first attempt); JSDOM and RSC are both Low feasibility because neither has a real CSS layout engine. Recommended approach for M13.1 documented in `docs/spikes/2026-07-30-m13-react-rendering.md`, including the runtime-dependency-size tradeoff (Playwright's Chromium cache measured 656MB on this system) that M13.1 planning needs to resolve before implementation.
+
+**M13.0.5 spike (2026-08-08)** ✅ — Full-page rendering research complete, using real `demo-shop2` page files (byte-identical copies, no source edits) instead of synthetic components. Verdict: full success — all three test cases (no-data page, async Prisma page, async Prisma+Drizzle page with dynamic route param) rendered via the same Playwright + esbuild pipeline M13.0 recommended, needing only (1) esbuild resolving the project's real `tsconfig.json` path aliases and (2) aliasing the two data-access wrapper modules to fixture stubs — no Next.js/Turbopack internals needed, and the "async server component" problem was sidestepped entirely by `await`-ing the page function directly instead of rendering it as JSX. One real gap found: `next/image` doesn't survive raw esbuild bundling (`next/link` and `next/navigation` degrade gracefully instead). Full writeup, per-test-case rubric, and M13.1 recommendations in `docs/spikes/2026-08-08-m13-page-rendering-feasibility.md`.
+
 Post-v0.5.1 roadmap:
 - **v0.5.2+**: SQLAlchemy detector, Supabase JS client detector, Firebase detector, cross-language route matching for database queries, foreign key relationships, table field/column detection, client-variable tracking for HTTP call detection, more framework detectors (Astro, Remix, SvelteKit, Vue, Django, Flask), path-segment templating for meta-blueprints, monorepo Next.js support, caching with content hashes
 - **v0.6+**: astro-site blueprint, openclaw-skill blueprint
