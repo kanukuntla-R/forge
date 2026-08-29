@@ -137,6 +137,61 @@ func TestServerServesAnalysis(t *testing.T) {
 	}
 }
 
+func TestServerServesRenders(t *testing.T) {
+	dir := t.TempDir()
+	analysisPath := writeAnalysisJSON(t, dir)
+	rendersDir := filepath.Join(dir, ".forge", "renders")
+	if err := os.MkdirAll(rendersDir, 0o755); err != nil {
+		t.Fatalf("mkdir renders: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(rendersDir, "metadata.json"), []byte(`{"version":"0.6.0"}`), 0o644); err != nil {
+		t.Fatalf("write metadata.json: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(rendersDir, "home.png"), []byte("fake-png"), 0o644); err != nil {
+		t.Fatalf("write home.png: %v", err)
+	}
+	srv, cancel := startTestServer(t, dir, analysisPath)
+	defer cancel()
+
+	resp, err := http.Get(srv.URL() + "/renders/metadata.json")
+	if err != nil {
+		t.Fatalf("GET /renders/metadata.json: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /renders/metadata.json status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !containsString(body, "0.6.0") {
+		t.Errorf("GET /renders/metadata.json body = %s, want to contain version", body)
+	}
+
+	resp2, err := http.Get(srv.URL() + "/renders/home.png")
+	if err != nil {
+		t.Fatalf("GET /renders/home.png: %v", err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("GET /renders/home.png status = %d, want 200", resp2.StatusCode)
+	}
+}
+
+func TestServerRendersMissingReturns404(t *testing.T) {
+	dir := t.TempDir()
+	analysisPath := writeAnalysisJSON(t, dir)
+	srv, cancel := startTestServer(t, dir, analysisPath)
+	defer cancel()
+
+	resp, err := http.Get(srv.URL() + "/renders/metadata.json")
+	if err != nil {
+		t.Fatalf("GET /renders/metadata.json: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("GET /renders/metadata.json status = %d, want 404 when .forge/renders doesn't exist", resp.StatusCode)
+	}
+}
+
 func TestServerHealthEndpoint(t *testing.T) {
 	dir := t.TempDir()
 	analysisPath := writeAnalysisJSON(t, dir)

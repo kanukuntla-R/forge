@@ -2,6 +2,7 @@ const { useState, useEffect, useLayoutEffect, useRef } = React;
 
 const THEME_STORAGE_KEY = 'forge-theme';
 const THEME_MODES = ['light', 'dark', 'auto'];
+const PREVIEWS_STORAGE_KEY = 'forge-previews-enabled';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -49,7 +50,7 @@ function getCallTarget(apiCall, files) {
     return call ? call.target : '';
 }
 
-function buildGraphData(analysis) {
+function buildGraphData(analysis, previewMap) {
     const nextjs    = analysis.frameworks && analysis.frameworks.nextjs;
     const fastapi   = analysis.frameworks && analysis.frameworks.fastapi;
     const databases = analysis.databases || [];
@@ -64,7 +65,7 @@ function buildGraphData(analysis) {
     // be in nodeIds, regardless of which framework's edges are built first.
     // Same reasoning extends to database tables: a query edge needs its
     // table node to exist, so table nodes are added alongside framework nodes.
-    if (nextjs) addNextJSNodes(nextjs, nodes, nodeIds);
+    if (nextjs) addNextJSNodes(nextjs, nodes, nodeIds, previewMap || {});
     if (fastapi) addFastAPINodes(fastapi, nodes, nodeIds);
     if (databases.length > 0) addDatabaseNodes(databases, nodes, nodeIds);
     if (nextjs) addNextJSEdges(nextjs, analysis, edges, nodeIds);
@@ -137,11 +138,14 @@ function addDatabaseEdges(analysis, edges, nodeIds) {
     }
 }
 
-function addNextJSNodes(nextjs, nodes, nodeIds) {
+function addNextJSNodes(nextjs, nodes, nodeIds, previewMap) {
     for (const page of (nextjs.pages || [])) {
         const id = page.file;
         if (!nodeIds.has(id)) {
-            nodes.push({ data: { id, label: page.path, type: 'page', file: page.file } });
+            const data = { id, label: page.path, type: 'page', file: page.file };
+            const previewUrl = previewMap[page.file];
+            if (previewUrl) data.previewUrl = previewUrl;
+            nodes.push({ data });
             nodeIds.add(id);
         }
     }
@@ -386,9 +390,22 @@ function getThemeColors() {
     };
 }
 
+// Base thumbnail size (zoom == 1) for preview-mode page nodes; clamped to
+// [0.5, 1.5]x per the zoom-adaptive sizing spec.
+const PREVIEW_BASE_WIDTH  = 80;
+const PREVIEW_BASE_HEIGHT = 60;
+
+function previewScale(zoomRef) {
+    return Math.max(0.5, Math.min(1.5, (zoomRef && zoomRef.current) || 1));
+}
+
 // Cytoscape doesn't read CSS custom properties itself — its style array needs
 // resolved color values, so this rebuilds it from getThemeColors() output.
-function buildCytoscapeStyle(c) {
+// zoomRef is a ref whose .current tracks cy.zoom(); the preview-mode width/
+// height are style functions reading it, so a 'zoom' listener only needs to
+// update the ref and call cy.style().update() to trigger a resize — no
+// manual per-node math in the event handler itself.
+function buildCytoscapeStyle(c, zoomRef) {
     return [
     {
         selector: 'node[type="page"]',
@@ -405,6 +422,20 @@ function buildCytoscapeStyle(c) {
             'height':       28,
             'padding':      '8px',
             'border-width': 0,
+        }
+    },
+    {
+        selector: 'node[type="page"][previewUrl].preview-mode',
+        style: {
+            'shape':             'rectangle',
+            'background-image':  'data(previewUrl)',
+            'background-fit':    'cover',
+            'background-color':  c.nodePage,
+            'label':             '',
+            'border-width':      2,
+            'border-color':      c.nodePage,
+            'width':             () => PREVIEW_BASE_WIDTH  * previewScale(zoomRef),
+            'height':            () => PREVIEW_BASE_HEIGHT * previewScale(zoomRef),
         }
     },
     {
@@ -587,11 +618,17 @@ function DetailSection({ title, count, children }) {
     );
 }
 
-function makeToggle(label, color, active, onClick) {
+function makeToggle(label, color, active, onClick, opts) {
+    opts = opts || {};
+    const disabled = !!opts.disabled;
     return React.createElement('button', {
-        onClick,
-        className: 'flex items-center gap-1.5 px-2 py-1 rounded text-xs cursor-pointer transition-colors ' +
-            (active ? 'bg-[var(--panel-alt)]' : 'opacity-50 hover:opacity-75'),
+        onClick: disabled ? undefined : onClick,
+        disabled,
+        title: opts.title,
+        className: 'flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ' +
+            (disabled
+                ? 'opacity-30 cursor-not-allowed'
+                : 'cursor-pointer ' + (active ? 'bg-[var(--panel-alt)]' : 'opacity-50 hover:opacity-75')),
     },
         React.createElement('span', {
             className: 'w-2 h-2 rounded-full flex-shrink-0',
@@ -1008,9 +1045,10 @@ function RoutesView({ analysis, onNavigateToFile }) {
 
 // ── GraphView ─────────────────────────────────────────────────────────────────
 
-function GraphView({ analysis, onNavigateToFile, theme }) {
+function GraphView({ analysis, onNavigateToFile, theme, previewsEnabled, onTogglePreviews, previewsAvailable, previewMap }) {
     const containerRef = React.useRef(null);
     const cyRef        = React.useRef(null);
+    const zoomRef       = React.useRef(1);
     const [showApiCalls, setShowApiCalls] = useState(true);
     const [showImports,  setShowImports]  = useState(false);
     const [showUsage,    setShowUsage]    = useState(false);
@@ -1023,6 +1061,7 @@ function GraphView({ analysis, onNavigateToFile, theme }) {
     const nextjs    = analysis.frameworks && analysis.frameworks.nextjs;
     const fastapi   = analysis.frameworks && analysis.frameworks.fastapi;
     const databases = analysis.databases || [];
+    const hasPages  = !!(nextjs && (nextjs.pages || []).length > 0);
     const hasData = !!(nextjs && (
         (nextjs.pages      || []).length > 0 ||
         (nextjs.routes     || []).length > 0 ||
@@ -1033,7 +1072,9 @@ function GraphView({ analysis, onNavigateToFile, theme }) {
         (fastapi.routes  || []).length > 0
     )) || databases.length > 0;
 
-    // Initialize cytoscape; re-run only if analysis changes.
+    // Initialize cytoscape; re-run if analysis or the render map changes
+    // (the render map arrives from a separate fetch and may resolve after
+    // the graph's first build).
     useEffect(() => {
         if (!containerRef.current || !hasData) return;
 
@@ -1042,12 +1083,12 @@ function GraphView({ analysis, onNavigateToFile, theme }) {
             return;
         }
 
-        const graphData = buildGraphData(analysis);
+        const graphData = buildGraphData(analysis, previewMap);
 
         const cy = cytoscape({
             container: containerRef.current,
             elements: [...graphData.nodes, ...graphData.edges],
-            style: buildCytoscapeStyle(getThemeColors()),
+            style: buildCytoscapeStyle(getThemeColors(), zoomRef),
             layout: coseLayoutOptions,
         });
 
@@ -1056,6 +1097,14 @@ function GraphView({ analysis, onNavigateToFile, theme }) {
         // but they don't clutter the initial view.
         cy.edges('[type="import"]').style('display', 'none');
         cy.edges('[type="usage"]').style('display', 'none');
+
+        // Preview-mode width/height are style functions reading zoomRef —
+        // keep it in sync and ask cytoscape to recompute on zoom.
+        zoomRef.current = cy.zoom();
+        cy.on('zoom', () => {
+            zoomRef.current = cy.zoom();
+            cy.style().update();
+        });
 
         // Single click: highlight node and its immediate neighborhood; fade rest.
         cy.on('tap', 'node', evt => {
@@ -1082,7 +1131,7 @@ function GraphView({ analysis, onNavigateToFile, theme }) {
 
         cyRef.current = cy;
         return () => { cy.destroy(); cyRef.current = null; };
-    }, [analysis]);
+    }, [analysis, previewMap]);
 
     // Sync edge visibility with toggle state.
     useEffect(() => {
@@ -1100,7 +1149,7 @@ function GraphView({ analysis, onNavigateToFile, theme }) {
     // to catch up on.
     useEffect(() => {
         if (!cyRef.current) return;
-        cyRef.current.style(buildCytoscapeStyle(getThemeColors())).update();
+        cyRef.current.style(buildCytoscapeStyle(getThemeColors(), zoomRef)).update();
     }, [theme]);
 
     // Sync node visibility with type filter.
@@ -1110,6 +1159,24 @@ function GraphView({ analysis, onNavigateToFile, theme }) {
             cyRef.current.nodes('[type="' + type + '"]').style('display', visible ? 'element' : 'none');
         }
     }, [nodeTypeFilter]);
+
+    // Sync preview mode: flip page nodes between the blue pill and their
+    // render thumbnail. Nodes without a previewUrl never match the
+    // image-style selector regardless of this class, so missing renders
+    // fall back to the plain style automatically.
+    useEffect(() => {
+        if (!cyRef.current) return;
+        const pageNodes = cyRef.current.nodes('[type="page"]');
+        if (previewsEnabled) {
+            pageNodes.addClass('preview-mode');
+            const missing = pageNodes.filter(n => !n.data('previewUrl'));
+            if (missing.length > 0) {
+                console.debug('forge: no render available for', missing.length, 'page(s)');
+            }
+        } else {
+            pageNodes.removeClass('preview-mode');
+        }
+    }, [previewsEnabled, analysis, previewMap]);
 
     if (!hasData) {
         return React.createElement('div', {
@@ -1140,6 +1207,10 @@ function GraphView({ analysis, onNavigateToFile, theme }) {
                     () => setNodeTypeFilter(p => ({ ...p, component: !p.component }))),
                 makeToggle('Routers',    'var(--node-router)', nodeTypeFilter.router,
                     () => setNodeTypeFilter(p => ({ ...p, router:    !p.router }))),
+                hasPages && makeToggle('Previews', 'var(--accent)', previewsEnabled, onTogglePreviews, {
+                    disabled: !previewsAvailable,
+                    title: previewsAvailable ? undefined : 'Run forge render first.',
+                }),
                 databases.length > 0 && makeToggle('Tables', 'var(--node-table)', nodeTypeFilter.table,
                     () => setNodeTypeFilter(p => ({ ...p, table: !p.table }))),
             ),
@@ -1242,6 +1313,37 @@ function App() {
         !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
     );
     const effectiveTheme = themeMode === 'auto' ? (systemDark ? 'dark' : 'light') : themeMode;
+
+    // null = not loaded yet (or /renders/metadata.json is missing, e.g. no
+    // `forge render` has run) — both cases disable the Previews toggle.
+    const [renderMeta, setRenderMeta] = useState(null);
+    const [previewsEnabled, setPreviewsEnabled] = useState(
+        () => localStorage.getItem(PREVIEWS_STORAGE_KEY) === 'true'
+    );
+
+    useEffect(() => {
+        fetch('/renders/metadata.json')
+            .then(r => (r.ok ? r.json() : null))
+            .then(setRenderMeta)
+            .catch(() => setRenderMeta(null));
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem(PREVIEWS_STORAGE_KEY, previewsEnabled);
+    }, [previewsEnabled]);
+
+    // file -> full render URL, keyed the same way page graph nodes are
+    // (by file path, not URL path).
+    const previewMap = React.useMemo(() => {
+        if (!renderMeta) return {};
+        const map = {};
+        for (const page of (renderMeta.pages || [])) {
+            if (page.renderStatus === 'success' && page.renderPath) {
+                map[page.file] = '/renders/' + page.renderPath.split('/').pop();
+            }
+        }
+        return map;
+    }, [renderMeta]);
 
     useEffect(() => {
         if (!window.matchMedia) return;
@@ -1395,6 +1497,10 @@ function App() {
                     analysis,
                     onNavigateToFile: handleNavigateToFile,
                     theme: effectiveTheme,
+                    previewsEnabled,
+                    onTogglePreviews: () => setPreviewsEnabled(v => !v),
+                    previewsAvailable: renderMeta !== null,
+                    previewMap,
                 })
     );
 }

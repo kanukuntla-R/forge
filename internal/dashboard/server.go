@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -73,6 +74,8 @@ func NewServer(projectRoot, analysisPath string) (*Server, error) {
 	mux.HandleFunc("/api/health", s.handleHealth)
 	mux.HandleFunc("/api/analysis", s.handleAnalysis)
 	mux.HandleFunc("/ws", hub.ServeWS)
+	rendersDir := filepath.Join(projectRoot, ".forge", "renders")
+	mux.Handle("/renders/", http.StripPrefix("/renders/", http.FileServer(http.Dir(rendersDir))))
 	mux.Handle("/", http.FileServer(staticFileSystem()))
 
 	s.httpServer = &http.Server{Handler: mux}
