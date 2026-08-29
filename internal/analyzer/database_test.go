@@ -133,3 +133,22 @@ func TestProjectAnalysis_DatabasesOmittedWhenEmpty(t *testing.T) {
 		t.Errorf("expected databases omitted when empty, got %s", data)
 	}
 }
+
+// TestDatabaseTable_VariableNameSurvivesJSONRoundTrip proves VariableName
+// is serialized: page-rendering (M13.2.5) needs it to still be there after
+// reading a cached analysis.json back off disk, not just on a fresh
+// in-process analysis.
+func TestDatabaseTable_VariableNameSurvivesJSONRoundTrip(t *testing.T) {
+	table := analyzer.DatabaseTable{Name: "comments", VariableName: "comments"}
+	data, err := json.Marshal(table)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var got analyzer.DatabaseTable
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if got.VariableName != "comments" {
+		t.Errorf("VariableName after JSON round-trip = %q, want %q", got.VariableName, "comments")
+	}
+}

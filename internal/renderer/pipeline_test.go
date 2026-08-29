@@ -1,6 +1,8 @@
 package renderer
 
 import (
+	"image"
+	_ "image/png"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -77,4 +79,37 @@ func assertPNG(t *testing.T, path string) {
 			t.Fatalf("output file is not a valid PNG (bad magic bytes)")
 		}
 	}
+	assertNotBlank(t, path)
+}
+
+// assertNotBlank decodes the PNG at path and fails if every pixel is the
+// same color. A rendering pipeline that silently produces an empty DOM
+// (e.g. a missing/misconfigured JSX runtime) still writes a structurally
+// valid, uniformly-colored screenshot — magic-byte and size checks alone
+// don't catch that; only pixel content does.
+func assertNotBlank(t *testing.T, path string) {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("opening PNG: %v", err)
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		t.Fatalf("decoding PNG: %v", err)
+	}
+
+	bounds := img.Bounds()
+	first := img.At(bounds.Min.X, bounds.Min.Y)
+	fr, fg, fb, fa := first.RGBA()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			if r != fr || g != fg || b != fb || a != fa {
+				return
+			}
+		}
+	}
+	t.Fatalf("rendered PNG %s is blank: every pixel is the same color", path)
 }

@@ -33,11 +33,11 @@ func TestRunRenderBatchEmptyProject(t *testing.T) {
 	t.Cleanup(func() { os.Chdir(origWD) })
 
 	var out bytes.Buffer
-	err = runRenderBatch(&out, "", "800x600", 4, false, false, false)
+	err = runRenderBatch(&out, "", "800x600", 4, 0, false, false, false, false, false)
 	if err != nil {
 		t.Fatalf("runRenderBatch on empty project: unexpected error: %v", err)
 	}
-	if !strings.Contains(out.String(), "Rendered 0/0 component(s)") {
-		t.Errorf("expected informational 0/0 message, got: %q", out.String())
+	if !strings.Contains(out.String(), "Rendered 0/0 component(s)") || !strings.Contains(out.String(), "0/0 page(s)") {
+		t.Errorf("expected informational 0/0 message for both components and pages, got: %q", out.String())
 	}
 }

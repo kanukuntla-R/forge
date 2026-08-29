@@ -35,6 +35,14 @@ const buildOptions = {
     format: 'iife',
     outfile: outputPath,
     platform: 'browser',
+    // esbuild defaults to the classic JSX transform (React.createElement),
+    // which requires each source file to import React itself. Modern
+    // React/Next.js components rely on the automatic runtime and never do
+    // that import, so classic mode silently threw "React is not defined"
+    // inside every component, crashing the render but still writing a
+    // valid, blank PNG (caught by internal/renderer/pipeline_test.go's
+    // assertNotBlank, not by the earlier magic-bytes-only check).
+    jsx: 'automatic',
     // react/react-dom live in this script's own node_modules (the persistent
     // renderer cache dir), not next to the component being bundled.
     nodePaths: [path.join(__dirname, 'node_modules')],

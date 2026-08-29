@@ -18,12 +18,19 @@ import (
 // .forge/renders/) never touch the checked-in fixture.
 func copyFixtureProject(t *testing.T) string {
 	t.Helper()
+	return copyFixture(t, "testdata/batchproject")
+}
+
+// copyFixture copies the fixture project directory at src into a fresh
+// temp dir so RenderBatch's writes never touch the checked-in fixture.
+func copyFixture(t *testing.T, src string) string {
+	t.Helper()
 	dst := t.TempDir()
-	err := filepath.WalkDir("testdata/batchproject", func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, err := filepath.Rel("testdata/batchproject", path)
+		rel, err := filepath.Rel(src, path)
 		if err != nil {
 			return err
 		}
@@ -38,7 +45,7 @@ func copyFixtureProject(t *testing.T) string {
 		return os.WriteFile(target, data, 0o644)
 	})
 	if err != nil {
-		t.Fatalf("copying fixture project: %v", err)
+		t.Fatalf("copying fixture project %s: %v", src, err)
 	}
 	return dst
 }
@@ -197,11 +204,11 @@ func TestRenderBatchIntegration(t *testing.T) {
 		t.Fatalf("RenderBatch: %v\nlog:\n%s", err, logOut.String())
 	}
 
-	if result.Summary.Total != 3 {
-		t.Fatalf("Summary.Total = %d, want 3 (log:\n%s)", result.Summary.Total, logOut.String())
+	if result.Summary.Components.Total != 3 {
+		t.Fatalf("Summary.Components.Total = %d, want 3 (log:\n%s)", result.Summary.Components.Total, logOut.String())
 	}
-	if result.Summary.Succeeded != 2 || result.Summary.Failed != 1 {
-		t.Errorf("Summary = %+v, want 2 succeeded, 1 failed", result.Summary)
+	if result.Summary.Components.Succeeded != 2 || result.Summary.Components.Failed != 1 {
+		t.Errorf("Summary.Components = %+v, want 2 succeeded, 1 failed", result.Summary.Components)
 	}
 
 	byPath := make(map[string]ComponentRender, len(result.Components))
@@ -263,8 +270,8 @@ func TestRenderBatchIntegration(t *testing.T) {
 	if err := json.Unmarshal(data, &onDisk); err != nil {
 		t.Fatalf("parsing metadata.json: %v", err)
 	}
-	if onDisk.Summary.Total != 3 {
-		t.Errorf("metadata.json Summary.Total = %d, want 3", onDisk.Summary.Total)
+	if onDisk.Summary.Components.Total != 3 {
+		t.Errorf("metadata.json Summary.Components.Total = %d, want 3", onDisk.Summary.Components.Total)
 	}
 
 	if _, err := os.Stat(filepath.Join(dir, ".forge", "analysis.json")); err != nil {
@@ -292,8 +299,8 @@ func TestRenderBatchNoComponents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderBatch on component-less project: unexpected error: %v", err)
 	}
-	if result.Summary.Total != 0 {
-		t.Errorf("Summary.Total = %d, want 0", result.Summary.Total)
+	if result.Summary.Components.Total != 0 || result.Summary.Pages.Total != 0 {
+		t.Errorf("Summary = %+v, want 0 components and 0 pages", result.Summary)
 	}
 	if _, err := os.Stat(filepath.Join(forgeDir, "renders", "metadata.json")); err != nil {
 		t.Errorf("expected metadata.json to still be written: %v", err)

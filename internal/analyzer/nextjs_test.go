@@ -233,6 +233,76 @@ func TestNextjsRootPage(t *testing.T) {
 	}
 }
 
+// enrichNextjsOnDisk mirrors enrichNextjs but sets Project.Root to a real
+// temp dir and writes each file's content, so EnrichAnalysis can read
+// source (needed for IsAsync detection).
+func enrichNextjsOnDisk(t *testing.T, files map[string]string) *analyzer.NextjsInfo {
+	t.Helper()
+	dir := t.TempDir()
+	fileInfos := make([]analyzer.FileInfo, 0, len(files))
+	for path, content := range files {
+		full := filepath.Join(dir, path)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		fileInfos = append(fileInfos, tsFile(path))
+	}
+	analysis := &analyzer.ProjectAnalysis{
+		Project: analyzer.ProjectInfo{Root: dir, Name: "test", Languages: []string{}, Frameworks: []string{}},
+		Files:   fileInfos,
+	}
+	d := analyzer.NewNextjsDetector()
+	if err := d.EnrichAnalysis(analysis); err != nil {
+		t.Fatalf("EnrichAnalysis: %v", err)
+	}
+	raw := analysis.Frameworks["nextjs"]
+	data, _ := json.Marshal(raw)
+	var info analyzer.NextjsInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		t.Fatalf("unmarshaling NextjsInfo: %v", err)
+	}
+	return &info
+}
+
+func TestNextjsPageIsAsyncTrue(t *testing.T) {
+	info := enrichNextjsOnDisk(t, map[string]string{
+		"app/users/page.tsx": `export default async function UsersPage() { return null }`,
+	})
+	if len(info.Pages) != 1 {
+		t.Fatalf("want 1 page, got %d", len(info.Pages))
+	}
+	if !info.Pages[0].IsAsync {
+		t.Error("want IsAsync=true for a page with an async default export")
+	}
+}
+
+func TestNextjsPageIsAsyncFalse(t *testing.T) {
+	info := enrichNextjsOnDisk(t, map[string]string{
+		"app/page.tsx": `export default function HomePage() { return null }`,
+	})
+	if len(info.Pages) != 1 {
+		t.Fatalf("want 1 page, got %d", len(info.Pages))
+	}
+	if info.Pages[0].IsAsync {
+		t.Error("want IsAsync=false for a page with a sync default export")
+	}
+}
+
+func TestNextjsPageIsAsyncDefaultsFalseWhenUnreadable(t *testing.T) {
+	// tsFile()-only pages (no real file backing, "/fake" root) must not
+	// break EnrichAnalysis — IsAsync should default false, not error.
+	info := enrichNextjs(t, []analyzer.FileInfo{tsFile("app/page.tsx")})
+	if len(info.Pages) != 1 {
+		t.Fatalf("want 1 page, got %d", len(info.Pages))
+	}
+	if info.Pages[0].IsAsync {
+		t.Error("want IsAsync=false when the page file can't be read")
+	}
+}
+
 func TestNextjsProjectFrameworksUpdated(t *testing.T) {
 	analysis := &analyzer.ProjectAnalysis{
 		Project: analyzer.ProjectInfo{

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -28,9 +29,10 @@ type NextjsAPICall struct {
 
 // NextjsPage represents a page in the App Router (app/**/page.{tsx,ts,jsx,js}).
 type NextjsPage struct {
-	ID   string `json:"id"`
-	Path string `json:"path"` // URL path with :param transformations
-	File string `json:"file"`
+	ID      string `json:"id"`
+	Path    string `json:"path"` // URL path with :param transformations
+	File    string `json:"file"`
+	IsAsync bool   `json:"is_async"` // true if the default-exported page function is declared async
 }
 
 // NextjsRoute represents an API route handler (app/**/route.{ts,js}).
@@ -91,9 +93,10 @@ func (d *nextjsDetector) EnrichAnalysis(analysis *ProjectAnalysis) error {
 		switch {
 		case isNextjsPage(file.Path):
 			info.Pages = append(info.Pages, NextjsPage{
-				ID:   file.Path,
-				Path: appDirURL(file.Path),
-				File: file.Path,
+				ID:      file.Path,
+				Path:    appDirURL(file.Path),
+				File:    file.Path,
+				IsAsync: isAsyncDefaultExport(analysis.Project.Root, file.Path),
 			})
 		case isNextjsRoute(file.Path):
 			info.Routes = append(info.Routes, NextjsRoute{
@@ -215,6 +218,23 @@ func isNextjsLayout(path string) bool {
 // because Next.js allows route handlers anywhere in the app directory.
 func isNextjsRoute(path string) bool {
 	return strings.HasPrefix(path, "app/") && nextjsRouteNames[pathBaseName(path)]
+}
+
+// asyncDefaultExportRe matches an async default-exported function, covering
+// both the direct form (`export default async function Page`) and the
+// declare-then-export form (`async function Page() {}` ... `export default Page`).
+var asyncDefaultExportRe = regexp.MustCompile(`export\s+default\s+async\s+function`)
+
+// isAsyncDefaultExport reports whether the page file at root/relPath
+// declares its default-exported function as async. Reads best-effort: an
+// unreadable file (missing, or a fixture with no real backing) defaults to
+// false rather than failing the whole analysis.
+func isAsyncDefaultExport(root, relPath string) bool {
+	content, err := os.ReadFile(filepath.Join(root, relPath))
+	if err != nil {
+		return false
+	}
+	return asyncDefaultExportRe.Match(content)
 }
 
 func isNextjsComponent(path string) bool {

@@ -43,8 +43,10 @@ type DatabaseTable struct {
 
 	// VariableName is the identifier query code refers to this table by,
 	// e.g. "users" in `export const users = pgTable("app_users", ...)`. Not
-	// always equal to Name — detector-internal, not serialized.
-	VariableName string `json:"-"`
+	// always equal to Name. Serialized (unlike originally) because M13.2.5
+	// page rendering needs it to survive a round-trip through a cached
+	// analysis.json, not just a fresh in-process analysis.
+	VariableName string `json:"variable_name,omitempty"`
 }
 
 // DatabaseQuery represents a query call from application code to a table.

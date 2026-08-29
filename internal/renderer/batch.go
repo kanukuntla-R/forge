@@ -19,13 +19,16 @@ const batchMetadataVersion = "0.6.0"
 
 // BatchOptions configures a RenderBatch call.
 type BatchOptions struct {
-	ProjectRoot string    // project to render; required
-	OutputDir   string    // default <ProjectRoot>/.forge/renders
-	Parallelism int       // default 4
-	Refresh     bool      // force re-analysis even if analysis.json exists
-	Viewport    string    // "WxH"; default "800x600"
-	Verbose     bool      // log each pipeline stage to Stdout
-	Stdout      io.Writer // verbose stage log destination; default io.Discard
+	ProjectRoot    string    // project to render; required
+	OutputDir      string    // default <ProjectRoot>/.forge/renders
+	Parallelism    int       // default 4
+	Refresh        bool      // force re-analysis even if analysis.json exists
+	Viewport       string    // "WxH"; default "800x600"
+	ComponentsOnly bool      // skip pages
+	PagesOnly      bool      // skip components
+	PagesLimit     int       // 0 = no limit; render only the first N pages
+	Verbose        bool      // log each pipeline stage to Stdout
+	Stdout         io.Writer // verbose stage log destination; default io.Discard
 }
 
 // RenderProps mirrors M13.1's TypeExtraction/GenerateProps shapes: the
@@ -47,12 +50,18 @@ type ComponentRender struct {
 	Props        RenderProps `json:"props"`
 }
 
+// BatchCounts aggregates one render phase's (components, or pages) results.
+type BatchCounts struct {
+	Total     int `json:"total"`
+	Succeeded int `json:"succeeded"`
+	Failed    int `json:"failed"`
+}
+
 // BatchSummary aggregates a batch render's results.
 type BatchSummary struct {
-	Total       int   `json:"total"`
-	Succeeded   int   `json:"succeeded"`
-	Failed      int   `json:"failed"`
-	TotalTimeMS int64 `json:"totalTime"`
+	Components  BatchCounts `json:"components"`
+	Pages       BatchCounts `json:"pages"`
+	TotalTimeMS int64       `json:"totalTime"`
 }
 
 // BatchResult is the full output of RenderBatch, also written to metadata.json.
@@ -61,7 +70,21 @@ type BatchResult struct {
 	RenderedAt  string            `json:"renderedAt"`
 	ProjectRoot string            `json:"projectRoot"`
 	Components  []ComponentRender `json:"components"`
+	Pages       []PageRender      `json:"pages"`
 	Summary     BatchSummary      `json:"summary"`
+}
+
+// PageRender is one page's entry in a batch render's metadata.
+type PageRender struct {
+	Path          string            `json:"path"` // URL path with :param segments, e.g. "/posts/:id"
+	File          string            `json:"file"`
+	RenderPath    string            `json:"renderPath,omitempty"`
+	RenderStatus  string            `json:"renderStatus"` // "success" | "failed"
+	RenderTimeMS  int64             `json:"renderTime"`
+	RenderError   string            `json:"renderError,omitempty"`
+	Type          string            `json:"type"` // "static" | "async"
+	UsedFixtures  []string          `json:"usedFixtures,omitempty"`
+	DynamicParams map[string]string `json:"dynamicParams,omitempty"`
 }
 
 // RenderBatch renders every analyzer-detected Next.js component in a
@@ -102,16 +125,26 @@ func RenderBatch(opts BatchOptions) (*BatchResult, error) {
 		return nil, err
 	}
 
-	components := extractNextjsComponents(analysis)
+	var components []analyzer.NextjsComponent
+	if !opts.PagesOnly {
+		components = extractNextjsComponents(analysis)
+	}
 	log("found %d component(s)", len(components))
+
+	var pages []analyzer.NextjsPage
+	if !opts.ComponentsOnly {
+		pages = extractNextjsPages(analysis)
+	}
+	log("found %d page(s)", len(pages))
 
 	result := &BatchResult{
 		Version:     batchMetadataVersion,
 		RenderedAt:  time.Now().UTC().Format(time.RFC3339),
 		ProjectRoot: absRoot,
 		Components:  []ComponentRender{},
+		Pages:       []PageRender{},
 	}
-	if len(components) == 0 {
+	if len(components) == 0 && len(pages) == 0 {
 		if err := writeMetadata(result, outputDir); err != nil {
 			return nil, err
 		}
@@ -247,18 +280,37 @@ func RenderBatch(opts BatchOptions) (*BatchResult, error) {
 		}
 	}
 
-	summary := BatchSummary{}
+	componentCounts := BatchCounts{}
+	var totalTimeMS int64
 	for _, r := range results {
-		summary.Total++
+		componentCounts.Total++
 		if r.RenderStatus == "success" {
-			summary.Succeeded++
+			componentCounts.Succeeded++
 		} else {
-			summary.Failed++
+			componentCounts.Failed++
 		}
-		summary.TotalTimeMS += r.RenderTimeMS
+		totalTimeMS += r.RenderTimeMS
 	}
 	result.Components = results
-	result.Summary = summary
+
+	log("rendering %d page(s)", len(pages))
+	pageResults, err := renderPages(cacheDir, workDir, outputDir, absRoot, pages, analysis, opts.Parallelism, viewportW, viewportH, opts.PagesLimit)
+	if err != nil {
+		return nil, err
+	}
+	pageCounts := BatchCounts{}
+	for _, r := range pageResults {
+		pageCounts.Total++
+		if r.RenderStatus == "success" {
+			pageCounts.Succeeded++
+		} else {
+			pageCounts.Failed++
+		}
+		totalTimeMS += r.RenderTimeMS
+	}
+	result.Pages = pageResults
+
+	result.Summary = BatchSummary{Components: componentCounts, Pages: pageCounts, TotalTimeMS: totalTimeMS}
 
 	if err := writeMetadata(result, outputDir); err != nil {
 		return nil, err
