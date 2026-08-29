@@ -4,7 +4,9 @@
 package renderer
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -48,7 +50,14 @@ func ensureScripts(dir string) error {
 		}
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, "node_modules")); err == nil {
+	pkgData, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		return fmt.Errorf("reading package.json: %w", err)
+	}
+	sum := sha256.Sum256(pkgData)
+	pkgHash := hex.EncodeToString(sum[:])
+
+	if !needsInstall(dir, pkgHash) {
 		return nil
 	}
 
@@ -57,5 +66,21 @@ func ensureScripts(dir string) error {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("installing renderer script dependencies in %s: %w\n%s", dir, err, out)
 	}
-	return nil
+	return os.WriteFile(filepath.Join(dir, ".package-hash"), []byte(pkgHash), 0o644)
+}
+
+// needsInstall reports whether dir's node_modules must be (re)installed:
+// missing entirely, or stale relative to pkgHash (a hash of the embedded
+// package.json). This lets ensureScripts pick up new/changed dependencies
+// on machines with an already-primed cache dir, without re-running npm
+// install on every invocation once it's current.
+func needsInstall(dir, pkgHash string) bool {
+	if _, err := os.Stat(filepath.Join(dir, "node_modules")); err != nil {
+		return true
+	}
+	existing, err := os.ReadFile(filepath.Join(dir, ".package-hash"))
+	if err != nil {
+		return true
+	}
+	return string(existing) != pkgHash
 }

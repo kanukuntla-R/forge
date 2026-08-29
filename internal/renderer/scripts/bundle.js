@@ -1,11 +1,15 @@
 // bundle.js — bundles a component + synthetic props into a self-contained IIFE.
 //
-// Usage: node bundle.js <component.tsx> <props.json> <output.js>
+// Usage: node bundle.js <component.tsx> <props.json> <output.js> [tsconfig.json]
+//
+// The optional tsconfig.json path lets esbuild resolve the project's path
+// aliases (e.g. "@/components/Foo") the same way the TypeScript compiler
+// would. Omit it to bundle without alias resolution (M13.1 behavior).
 const esbuild = require('esbuild');
 const path = require('path');
 const fs = require('fs');
 
-const [componentPath, propsPath, outputPath] = process.argv.slice(2);
+const [componentPath, propsPath, outputPath, tsconfigPath] = process.argv.slice(2);
 
 const props = JSON.parse(fs.readFileSync(propsPath, 'utf-8'));
 
@@ -20,7 +24,7 @@ const root = createRoot(container);
 root.render(React.createElement(Component, props));
 `;
 
-esbuild.build({
+const buildOptions = {
     stdin: {
         contents: entrySource,
         resolveDir: path.dirname(componentPath),
@@ -34,7 +38,12 @@ esbuild.build({
     // react/react-dom live in this script's own node_modules (the persistent
     // renderer cache dir), not next to the component being bundled.
     nodePaths: [path.join(__dirname, 'node_modules')],
-}).catch(err => {
+};
+if (tsconfigPath) {
+    buildOptions.tsconfig = tsconfigPath;
+}
+
+esbuild.build(buildOptions).catch(err => {
     console.error(err.message || String(err));
     process.exit(1);
 });
