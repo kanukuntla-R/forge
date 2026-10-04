@@ -2,7 +2,7 @@
 
 ## v0.6.0 — Page Rendering + Dashboard Preview Toggle
 
-Released: [date when actually tagged]
+Released: 2026-10-04
 
 Forge can now render your Next.js components and pages into real PNG images, and show them as thumbnails directly in the dependency graph. See what each page looks like without leaving the dashboard — Figma-like page previews composed from live rendering.
 
