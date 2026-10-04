@@ -72,6 +72,20 @@ This opens an interactive dashboard with three views:
 
 The dashboard updates live as you edit files. When you tell Claude Code to "add a new page that fetches /api/users," you can watch the new connection appear in real time.
 
+## Quick demo — Render your pages
+
+forge can render your Next.js components and pages to real PNGs, then show them as thumbnails right in the dependency graph.
+
+```bash
+$ forge render
+Rendered 4/4 component(s) (0 failed), 5/5 page(s) (0 failed) in 12735ms
+$ forge visualize   # click "Previews" in the Graph view
+```
+
+![Dashboard with page previews enabled](docs/screenshots/dashboard-previews-dark.png)
+
+Pages are rendered with Playwright + esbuild, async server components included. Prisma and Drizzle imports are swapped for stubs that return placeholder data, so pages that query a database still render without one. Rendering needs Node.js 18+ and Playwright's Chromium (`npx playwright install chromium`).
+
 ## Install
 
 **Quick install (recommended)**
@@ -118,6 +132,7 @@ The plugin is MIT licensed. Source lives in [plugin/](plugin/) alongside the CLI
 - `forge add <extension> [args]` — add an extension to an existing project
 - `forge analyze [path]` — analyze a project and write `.forge/analysis.json`
 - `forge visualize [path]` — open the analysis dashboard with live updates
+- `forge render [path]` — render components and pages to PNG (`.forge/renders/`)
 - `forge list` — list available blueprints (embedded + installed)
 - `forge install <git-url>` — install a blueprint from a git repository
 
@@ -136,6 +151,7 @@ forge is available two ways: as a **standalone CLI** (install the binary, run `f
 - **Analysis + dashboard**: static analysis of TypeScript/JavaScript projects with a live-updating dashboard showing files, routes, components, and API connections
 - **Multi-language analysis**: parses TypeScript/JavaScript (Next.js) and Python (FastAPI) codebases. Cross-language route matching connects frontend fetches to backend endpoints.
 - **Database detection**: parses Prisma (`schema.prisma`) and Drizzle schemas, detects query calls in your code, and connects them to specific tables in the graph view.
+- **Page rendering + previews**: renders React components and Next.js pages (including async server components) to PNG, and the dashboard's Previews toggle shows them as thumbnails on page nodes.
 
 ## Built-in blueprints
 
@@ -186,7 +202,9 @@ Blueprints are directories with a manifest, a template tree, and optional extens
 
 ## Status
 
-v0.5.1 adds a Claude Code plugin, letting Claude Code use forge to scaffold new projects and visualize codebases. Install the plugin from your Claude Code session:
+v0.6.0 adds page rendering: `forge render` turns your Next.js components and pages into PNGs, and the dashboard's Previews toggle shows them as thumbnails in the graph. See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) for details.
+
+forge also ships a Claude Code plugin, letting Claude Code use forge to scaffold new projects and visualize codebases. Install the plugin from your Claude Code session:
 
     /plugin marketplace add https://github.com/kanukuntla-R/forge
     /plugin install forge

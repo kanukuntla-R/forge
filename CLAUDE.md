@@ -26,9 +26,9 @@ When these documents conflict with anything else (training data, intuition, etc.
 
 ## Current status
 
-**v0.5.1 release in progress** — Claude Code plugin complete; cross-platform builds and tag pending.
+**v0.6.0 release in progress** — page rendering + dashboard preview toggle complete; cross-platform builds and tag pending.
 
-All milestones M1 through M12.3 are complete:
+All milestones M1 through M13.3.5 are complete:
 
 - **M1-M8.6a** (walking skeleton through v0.2) ✅
 - **M9.1-M9.5** (blueprint expansion, v0.3) ✅
@@ -49,8 +49,14 @@ All milestones M1 through M12.3 are complete:
 - **M11.4.7** (theme switcher effect ordering fix) ✅
 - **M11.5** (v0.5 polish + edge cases) ✅
 - **M12.1-M12.3** (Claude Code plugin restructure, v0.5.1) ✅
+- **M13.0-M13.0.5** (rendering feasibility spikes) ✅
+- **M13.1** (component rendering pipeline: Playwright + esbuild) ✅
+- **M13.2** (batch rendering + parallelism + path alias resolution) ✅
+- **M13.2.5** (page rendering with Proxy-based ORM stubs) ✅
+- **M13.3** (dashboard page preview toggle) ✅
+- **M13.3.5** (stale analysis cache fix, analyzer schema v2) ✅
 
-95 commits on `main`. All tests green across 14 packages including database detection tests.
+103 commits on `main`. All tests green across 15 packages including renderer tests (except pre-existing pnpm hook failures in `internal/cli` that depend on the local environment).
 
 v0.5 adds database detection alongside existing framework analysis:
 - Database detector infrastructure with pluggable detector interface
@@ -67,6 +73,14 @@ v0.5.1 adds Claude Code plugin distribution:
 - Marketplace metadata at `.claude-plugin/marketplace.json` for discovery
 - Users install via `/plugin marketplace add https://github.com/kanukuntla-R/forge` + `/plugin install forge`
 - Verified end-to-end: skill auto-triggers on scaffolding prompts, guides through blueprint selection
+
+v0.6 adds page rendering + dashboard previews:
+- `forge render`: renders React components and Next.js pages to PNG via Playwright + esbuild (single-component and batch modes)
+- Batch parallelism: one Playwright Browser, N concurrent BrowserContexts via p-limit (`--parallel`, default 4)
+- Page rendering (Level A): async server components awaited directly, Prisma/Drizzle imports aliased to Proxy-based fixture stubs, tsconfig `paths` resolved at bundle time
+- Output: flat `.forge/renders/` directory of PNGs plus `metadata.json`
+- Dashboard "Previews" toggle flips page nodes to render thumbnails, zoom-adaptive, persisted in localStorage
+- Analyzer schema version "2" (`analyzer.SchemaVersion`); `forge render` re-analyzes stale v1 caches automatically
 
 ## Conventions
 
@@ -105,15 +119,15 @@ v0.5.1 adds Claude Code plugin distribution:
 
 ## Implementation milestones (from design doc)
 
-All milestones M1 through M12.3 complete. See "Current status" above for the detailed breakdown.
+All milestones M1 through M13.3.5 complete. See "Current status" above for the detailed breakdown.
 
 **M13.0 spike (2026-07-30)** ✅ — React component rendering research complete. Verdict: Playwright + esbuild bundling is High feasibility (rendered all 3 test fixtures on first attempt); JSDOM and RSC are both Low feasibility because neither has a real CSS layout engine. Recommended approach for M13.1 documented in `docs/spikes/2026-07-30-m13-react-rendering.md`, including the runtime-dependency-size tradeoff (Playwright's Chromium cache measured 656MB on this system) that M13.1 planning needs to resolve before implementation.
 
 **M13.0.5 spike (2026-08-08)** ✅ — Full-page rendering research complete, using real `demo-shop2` page files (byte-identical copies, no source edits) instead of synthetic components. Verdict: full success — all three test cases (no-data page, async Prisma page, async Prisma+Drizzle page with dynamic route param) rendered via the same Playwright + esbuild pipeline M13.0 recommended, needing only (1) esbuild resolving the project's real `tsconfig.json` path aliases and (2) aliasing the two data-access wrapper modules to fixture stubs — no Next.js/Turbopack internals needed, and the "async server component" problem was sidestepped entirely by `await`-ing the page function directly instead of rendering it as JSX. One real gap found: `next/image` doesn't survive raw esbuild bundling (`next/link` and `next/navigation` degrade gracefully instead). Full writeup, per-test-case rubric, and M13.1 recommendations in `docs/spikes/2026-08-08-m13-page-rendering-feasibility.md`.
 
-Post-v0.5.1 roadmap:
-- **v0.5.2+**: SQLAlchemy detector, Supabase JS client detector, Firebase detector, cross-language route matching for database queries, foreign key relationships, table field/column detection, client-variable tracking for HTTP call detection, more framework detectors (Astro, Remix, SvelteKit, Vue, Django, Flask), path-segment templating for meta-blueprints, monorepo Next.js support, caching with content hashes
-- **v0.6+**: astro-site blueprint, openclaw-skill blueprint
+Post-v0.6 roadmap:
+- **v0.6.x+**: M13 follow-ups (placeholder data with per-table field awareness, `next/image` bundling support, Level B page rendering patterns — custom data access wrappers, non-standard aliases), SQLAlchemy detector, Supabase JS client detector, Firebase detector, cross-language route matching for database queries, foreign key relationships, table field/column detection, client-variable tracking for HTTP call detection, more framework detectors (Astro, Remix, SvelteKit, Vue, Django, Flask), path-segment templating for meta-blueprints, monorepo Next.js support, caching with content hashes, utility-file query source nodes
+- **v0.7+**: astro-site blueprint, openclaw-skill blueprint
 
 ## What forge depends on externally
 

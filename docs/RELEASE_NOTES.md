@@ -1,5 +1,76 @@
 # forge release notes
 
+## v0.6.0 — Page Rendering + Dashboard Preview Toggle
+
+Released: [date when actually tagged]
+
+Forge can now render your Next.js components and pages into real PNG images, and show them as thumbnails directly in the dependency graph. See what each page looks like without leaving the dashboard — Figma-like page previews composed from live rendering.
+
+![Dashboard with page previews enabled](screenshots/dashboard-previews-dark.png)
+
+### Component rendering
+
+- **New command: `forge render`** — Renders every React component and Next.js page in a project to PNG via Playwright + esbuild
+- **Single component mode**: `forge render components/Header.tsx` renders one component with synthetic placeholder props
+- **Batch mode** (default): Point forge at a project, auto-analyzes if needed, renders everything in parallel
+- **Flags**: `--parallel N` to control concurrency (default 4), `--strict` for CI failure detection, `--pages-only` / `--components-only` to filter, `--pages-limit N` for partial renders, `--refresh` to force re-analysis
+- **Output**: PNGs land in a flat `.forge/renders/` directory (e.g. `components-Header.png`, `home.png`, `posts-id.png`) alongside a `metadata.json` describing each render
+- **Parallelism via `p-limit`**: Significant speedup over sequential rendering (one Playwright Browser, N concurrent BrowserContexts via p-limit)
+
+### Page rendering (Level A)
+
+- **Full page rendering**, not just components — including async server components with data fetching
+- **Proxy-based ORM stubs** — Prisma and Drizzle imports (`@/lib/prisma`, `@/db`) are automatically aliased to stubs that return synthetic data
+- **tsconfig path alias resolution** — whatever `paths` your `tsconfig.json` defines are resolved at bundle time
+- **Dynamic routes** — `[id]`, `[slug]` pages render with mock parameters
+- **Async page handling** — `async function Page()` is awaited to produce JSX, then rendered
+- **Clear failure messages** on non-standard patterns rather than silent breakage
+
+### Dashboard preview toggle
+
+- **New "Previews" button** in the graph filter row
+- **Toggle flips page nodes** from blue rectangles into thumbnail images of their rendered output
+- **Adaptive sizing** — thumbnails scale with graph zoom level (40×30 at low zoom, 120×90 at high zoom)
+- **Button disabled** with tooltip when `.forge/renders/metadata.json` is missing
+- **Button hidden** entirely for projects without pages (Python-only, Go-only)
+- **Toggle persists** in localStorage across page reloads
+- **Graceful fallback** — missing or failed renders show as blue rectangles alongside successful thumbnails
+
+### Internals
+
+- 5 new commits (M13.1 through M13.3.5)
+- New Go package `internal/renderer/` with pipeline orchestration, prop generation, prereq detection
+- 5 new Node scripts: `bundle.js`, `bundle-page.js`, `render.js`, `render-batch.js`, `types.js` (prop-type extraction)
+- Analyzer schema version bumped to "2" — stale v1 caches auto-re-analyze
+- Dashboard server now serves `.forge/renders/*` at `/renders/*`
+- Comprehensive test coverage: unit + integration tests for renderer, pages, batch orchestration
+- 2 pre-release spikes documented in `docs/spikes/`
+
+### Requirements
+
+Page rendering requires Node.js 18+ and Playwright's Chromium browser:
+
+```bash
+npx playwright install chromium
+```
+
+Forge checks that Node.js is on your PATH and that the Playwright package resolves, and prints install instructions if either is missing. A missing Chromium browser surfaces as Playwright's own launch error, which names the exact install command. On first run, forge runs `npm install` for its renderer scripts into `~/.cache/forge/renderer` (needs network access once).
+
+### Known limitations (Level A)
+
+- Fixture data uses generic placeholders (no per-table field awareness yet) — rendered pages show "Sample Name 1", "user1@example.com" etc. rather than schema-aware data
+- Only conventional Prisma + Drizzle data access patterns supported — custom wrappers fail with clear errors
+- `next/image` doesn't survive esbuild bundling yet (`next/link` and `next/navigation` degrade gracefully)
+- Page rendering tested extensively against standard Next.js app router projects
+
+### Screenshots
+
+- **Hero view (dark mode)**: [`dashboard-previews-dark.png`](screenshots/dashboard-previews-dark.png) shows the dashboard with the Previews toggle ON — page nodes have flipped to rendered thumbnails while graph connections remain visible.
+- **Baseline view**: [`dashboard-previews-off-dark.png`](screenshots/dashboard-previews-off-dark.png) shows the same graph with the Previews toggle OFF.
+- **Light mode variants**: [`dashboard-previews.png`](screenshots/dashboard-previews.png) and [`dashboard-previews-off.png`](screenshots/dashboard-previews-off.png).
+
+---
+
 ## v0.5.1 — Claude Code Plugin
 
 Released: 2026-07-30

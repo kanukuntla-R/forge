@@ -27,7 +27,16 @@ Informal tracking for items that don't fit neatly into a commit or milestone doc
 
 ---
 
-## Deferred to v0.5.1
+## Deferred to v0.6.x+
+
+### M13 follow-ups (page rendering)
+
+- **Per-table field awareness for placeholder data** — page stubs return the same generic rows
+  ("Sample Name 1", etc.) for every table; use detected schema fields instead.
+- **`next/image` bundling support** — `next/image` doesn't survive raw esbuild bundling
+  (found in the M13.0.5 spike); `next/link` and `next/navigation` degrade gracefully.
+- **Level B page rendering patterns** — custom data access wrappers and non-standard import
+  aliases (Level A only stubs `@/lib/prisma`, `@/db`, and their fixed allow-list siblings).
 
 ### Cross-language route matching for queries
 
@@ -140,7 +149,7 @@ I/O and CPU. Deferred from v0.3; still not started.
 
 ---
 
-## Deferred to v0.6+
+## Deferred to v0.7+
 
 - `astro-site` blueprint — Astro + content collections (framework detector already handles routes)
 - `openclaw-skill` blueprint — forge skill for the OpenClaw agent framework
