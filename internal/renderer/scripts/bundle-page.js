@@ -94,7 +94,11 @@ export const prisma = new Proxy({}, { get: () => makeModelStub() });
 // from "@/db"` resolves and `eq(comments.postId, x)` doesn't throw (real
 // drizzle-orm's eq() only duck-types its column arg; a plain object is safe).
 function drizzleStubSource(tableVars) {
-    const tableExports = tableVars.map(v => `export const ${v} = {};`).join('\n');
+    // Skip anything that isn't a valid identifier (e.g. empty, from a stale
+    // analysis.json) so one malformed entry can't break the whole bundle.
+    const tableExports = tableVars
+        .filter(v => typeof v === 'string' && /^[A-Za-z_$][\w$]*$/.test(v))
+        .map(v => `export const ${v} = {};`).join('\n');
     return `
 ${genericRowsSource()}
 // Drizzle's real query builder is "thenable" (awaitable directly, e.g.

@@ -1,5 +1,10 @@
 package analyzer
 
+// SchemaVersion is the analysis.json format version. Bump it whenever a
+// field consumers depend on is added, so cached files written by older
+// binaries get re-analyzed instead of trusted. "2": DatabaseTable.VariableName.
+const SchemaVersion = "2"
+
 // ProjectAnalysis is the top-level type written to .forge/analysis.json.
 type ProjectAnalysis struct {
 	Version      string           `json:"version"`

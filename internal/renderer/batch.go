@@ -360,7 +360,8 @@ func extractNextjsComponents(analysis *analyzer.ProjectAnalysis) []analyzer.Next
 }
 
 // ensureAnalysis reads .forge/analysis.json under root, running the
-// analyzer and writing it fresh if missing or refresh is requested.
+// analyzer and writing it fresh if missing, written by an older forge
+// (schema version mismatch), or refresh is requested.
 func ensureAnalysis(root string, refresh bool, log func(string, ...any)) (*analyzer.ProjectAnalysis, error) {
 	analysisPath := filepath.Join(root, ".forge", "analysis.json")
 	if !refresh {
@@ -369,8 +370,11 @@ func ensureAnalysis(root string, refresh bool, log func(string, ...any)) (*analy
 			if err := json.Unmarshal(data, &analysis); err != nil {
 				return nil, fmt.Errorf("parsing existing analysis.json: %w", err)
 			}
-			log("using existing analysis at %s", analysisPath)
-			return &analysis, nil
+			if analysis.Version == analyzer.SchemaVersion {
+				log("using existing analysis at %s", analysisPath)
+				return &analysis, nil
+			}
+			log("existing analysis is schema v%s (want v%s), re-analyzing", analysis.Version, analyzer.SchemaVersion)
 		}
 	}
 

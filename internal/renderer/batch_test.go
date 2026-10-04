@@ -131,7 +131,7 @@ func TestEnsureAnalysisUsesExistingFile(t *testing.T) {
 	if err := os.MkdirAll(forgeDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	fixture := analyzer.ProjectAnalysis{Project: analyzer.ProjectInfo{Name: "fixture-marker"}}
+	fixture := analyzer.ProjectAnalysis{Version: analyzer.SchemaVersion, Project: analyzer.ProjectInfo{Name: "fixture-marker"}}
 	data, _ := json.Marshal(fixture)
 	if err := os.WriteFile(filepath.Join(forgeDir, "analysis.json"), data, 0o644); err != nil {
 		t.Fatal(err)
@@ -179,6 +179,31 @@ func TestEnsureAnalysisRefreshIgnoresExistingFile(t *testing.T) {
 	}
 	if got.Project.Name == "fixture-marker" {
 		t.Errorf("ensureAnalysis with refresh=true used the stale existing file instead of re-analyzing")
+	}
+}
+
+// TestEnsureAnalysisReanalyzesOldSchema reproduces M13.3.5: an
+// analysis.json written by forge v0.5.1 (schema "1", no variable_name on
+// Drizzle tables) was trusted as-is, producing `export const  = {};` in
+// the Drizzle page stub.
+func TestEnsureAnalysisReanalyzesOldSchema(t *testing.T) {
+	dir := t.TempDir()
+	forgeDir := filepath.Join(dir, ".forge")
+	if err := os.MkdirAll(forgeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fixture := analyzer.ProjectAnalysis{Version: "1", Project: analyzer.ProjectInfo{Name: "fixture-marker"}}
+	data, _ := json.Marshal(fixture)
+	if err := os.WriteFile(filepath.Join(forgeDir, "analysis.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ensureAnalysis(dir, false, func(string, ...any) {})
+	if err != nil {
+		t.Fatalf("ensureAnalysis: %v", err)
+	}
+	if got.Version != analyzer.SchemaVersion {
+		t.Errorf("ensureAnalysis trusted a schema v1 analysis.json instead of re-analyzing (Version = %q)", got.Version)
 	}
 }
 

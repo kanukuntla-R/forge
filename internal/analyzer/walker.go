@@ -87,7 +87,7 @@ func Walk(projectRoot string, registry *Registry) (*WalkResult, error) {
 	}
 
 	analysis := &ProjectAnalysis{
-		Version:     "1",
+		Version:     SchemaVersion,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		Project: ProjectInfo{
 			Root:       absRoot,
